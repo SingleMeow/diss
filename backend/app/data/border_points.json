@@ -1,0 +1,267 @@
+[
+  {
+    "id": "exp_novorossiysk",
+    "name": "Новороссийский зерновой терминал (порт)",
+    "region_id": "novorossiysk",
+    "destination_country": "Турция, Египет, Ближний Восток, Сев. Африка (морем через Чёрное море)",
+    "handled_crop_ids": [
+      "wheat",
+      "barley",
+      "corn",
+      "sunflower",
+      "rapeseed",
+      "linseed"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 550000.0,
+      "barley": 180000.0,
+      "corn": 140000.0,
+      "sunflower": 70000.0,
+      "rapeseed": 45000.0,
+      "linseed": 25000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_vladivostok",
+    "name": "Владивостокский морской терминал",
+    "region_id": "vladivostok",
+    "destination_country": "Китай, Юго-Восточная Азия (морем через Тихий океан)",
+    "handled_crop_ids": [
+      "wheat",
+      "corn",
+      "soybean",
+      "rapeseed"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 180000.0,
+      "corn": 90000.0,
+      "soybean": 60000.0,
+      "rapeseed": 35000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_zabaikalsk",
+    "name": "Погранпереход Забайкальск (КНР)",
+    "region_id": "zabaikalsk",
+    "destination_country": "Китай (сухопутно, ж/д переход)",
+    "handled_crop_ids": [
+      "wheat",
+      "soybean",
+      "barley",
+      "rapeseed",
+      "linseed"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 90000.0,
+      "soybean": 70000.0,
+      "barley": 40000.0,
+      "rapeseed": 28000.0,
+      "linseed": 15000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_orenburg",
+    "name": "Погранпереход Оренбург (Казахстан)",
+    "region_id": "orenburg_kz",
+    "destination_country": "Казахстан, Центральная Азия (сухопутно)",
+    "handled_crop_ids": [
+      "wheat",
+      "barley",
+      "sunflower",
+      "rapeseed",
+      "mustard"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 120000.0,
+      "barley": 60000.0,
+      "sunflower": 30000.0,
+      "rapeseed": 22000.0,
+      "mustard": 12000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_baltiysk",
+    "name": "Балтийский морской терминал",
+    "region_id": "baltiysk",
+    "destination_country": "Евросоюз, Северная Африка (морем через Балтику)",
+    "handled_crop_ids": [
+      "wheat",
+      "rye",
+      "barley",
+      "rapeseed",
+      "linseed"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 100000.0,
+      "rye": 30000.0,
+      "barley": 40000.0,
+      "rapeseed": 38000.0,
+      "linseed": 20000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_taman",
+    "name": "Таманский зерновой терминал (ОТЭКО, порт)",
+    "region_id": "taman",
+    "destination_country": "Турция, Египет, Ближний Восток, Сев. Африка (морем через Чёрное море)",
+    "handled_crop_ids": [
+      "wheat",
+      "barley",
+      "corn",
+      "sunflower",
+      "rapeseed",
+      "linseed"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 600000.0,
+      "barley": 200000.0,
+      "corn": 150000.0,
+      "sunflower": 80000.0,
+      "rapeseed": 50000.0,
+      "linseed": 25000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_azov",
+    "name": "Азовский речной-морской терминал",
+    "region_id": "azov_port",
+    "destination_country": "Турция, Ближний Восток (рейдовая перевалка через Азово-Чёрное море)",
+    "handled_crop_ids": [
+      "wheat",
+      "barley",
+      "corn",
+      "sunflower",
+      "rapeseed"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 220000.0,
+      "barley": 90000.0,
+      "corn": 70000.0,
+      "sunflower": 40000.0,
+      "rapeseed": 25000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_yeysk",
+    "name": "Ейский морской терминал (порт)",
+    "region_id": "yeysk",
+    "destination_country": "Турция, Ближний Восток (морем через Азовское море)",
+    "handled_crop_ids": [
+      "wheat",
+      "barley",
+      "corn",
+      "sunflower"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 120000.0,
+      "barley": 50000.0,
+      "corn": 30000.0,
+      "sunflower": 25000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_taganrog",
+    "name": "Таганрогский морской терминал (порт)",
+    "region_id": "taganrog",
+    "destination_country": "Турция, Средиземноморье (морем через Азовское море)",
+    "handled_crop_ids": [
+      "wheat",
+      "barley",
+      "sunflower",
+      "rapeseed"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 130000.0,
+      "barley": 55000.0,
+      "sunflower": 28000.0,
+      "rapeseed": 18000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_ust_luga",
+    "name": "Усть-Луга — терминал LUGAPORT (порт)",
+    "region_id": "ust_luga",
+    "destination_country": "Сев. Африка, Ближний Восток, Азия (морем через Балтику)",
+    "handled_crop_ids": [
+      "wheat",
+      "barley",
+      "rye",
+      "rapeseed",
+      "linseed"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 250000.0,
+      "barley": 80000.0,
+      "rye": 30000.0,
+      "rapeseed": 45000.0,
+      "linseed": 25000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_makhachkala",
+    "name": "Махачкалинский морской терминал (порт)",
+    "region_id": "makhachkala",
+    "destination_country": "Иран, Закавказье (морем через Каспийское море)",
+    "handled_crop_ids": [
+      "wheat",
+      "barley",
+      "corn",
+      "linseed"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 90000.0,
+      "barley": 40000.0,
+      "corn": 25000.0,
+      "linseed": 12000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_troitsk",
+    "name": "Погранпереход Троицк (Казахстан, ж/д)",
+    "region_id": "troitsk_kz",
+    "destination_country": "Казахстан, Центральная Азия (сухопутно, ж/д)",
+    "handled_crop_ids": [
+      "wheat",
+      "barley",
+      "sunflower",
+      "rapeseed"
+    ],
+    "monthly_capacity_tons": {
+      "wheat": 80000.0,
+      "barley": 45000.0,
+      "sunflower": 22000.0,
+      "rapeseed": 16000.0
+    },
+    "flexibility": 0.95
+  },
+  {
+    "id": "exp_nizhneleninskoye",
+    "name": "Погранпереход Нижнеленинское (КНР, ж/д мост)",
+    "region_id": "nizhneleninskoye",
+    "destination_country": "Китай (сухопутно, ж/д мост через Амур)",
+    "handled_crop_ids": [
+      "soybean",
+      "wheat",
+      "corn",
+      "rapeseed"
+    ],
+    "monthly_capacity_tons": {
+      "soybean": 60000.0,
+      "wheat": 40000.0,
+      "corn": 30000.0,
+      "rapeseed": 15000.0
+    },
+    "flexibility": 0.95
+  }
+]

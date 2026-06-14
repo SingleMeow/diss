@@ -1,0 +1,982 @@
+[
+  {
+    "id": "belgorod",
+    "name": "Белгородская обл.",
+    "lat": 50.6,
+    "lon": 36.59,
+    "climate_zone": "black_earth",
+    "sown_area_ha": 1500000,
+    "population": 1500000,
+    "is_border": false
+  },
+  {
+    "id": "bryansk",
+    "name": "Брянская обл.",
+    "lat": 53.24,
+    "lon": 34.36,
+    "climate_zone": "temperate",
+    "sown_area_ha": 900000,
+    "population": 1170000,
+    "is_border": false
+  },
+  {
+    "id": "vladimir",
+    "name": "Владимирская обл.",
+    "lat": 56.13,
+    "lon": 40.4,
+    "climate_zone": "temperate",
+    "sown_area_ha": 330000,
+    "population": 1320000,
+    "is_border": false
+  },
+  {
+    "id": "voronezh",
+    "name": "Воронежская обл.",
+    "lat": 51.67,
+    "lon": 39.21,
+    "climate_zone": "black_earth",
+    "sown_area_ha": 2700000,
+    "population": 2280000,
+    "is_border": false
+  },
+  {
+    "id": "ivanovo",
+    "name": "Ивановская обл.",
+    "lat": 57.0,
+    "lon": 40.97,
+    "climate_zone": "temperate",
+    "sown_area_ha": 180000,
+    "population": 970000,
+    "is_border": false
+  },
+  {
+    "id": "kaluga",
+    "name": "Калужская обл.",
+    "lat": 54.51,
+    "lon": 36.26,
+    "climate_zone": "temperate",
+    "sown_area_ha": 360000,
+    "population": 1070000,
+    "is_border": false
+  },
+  {
+    "id": "kostroma",
+    "name": "Костромская обл.",
+    "lat": 57.77,
+    "lon": 40.93,
+    "climate_zone": "temperate",
+    "sown_area_ha": 200000,
+    "population": 580000,
+    "is_border": false
+  },
+  {
+    "id": "kursk",
+    "name": "Курская обл.",
+    "lat": 51.73,
+    "lon": 36.19,
+    "climate_zone": "black_earth",
+    "sown_area_ha": 1500000,
+    "population": 1070000,
+    "is_border": false
+  },
+  {
+    "id": "lipetsk",
+    "name": "Липецкая обл.",
+    "lat": 52.61,
+    "lon": 39.59,
+    "climate_zone": "black_earth",
+    "sown_area_ha": 1300000,
+    "population": 1110000,
+    "is_border": false
+  },
+  {
+    "id": "moscow_obl",
+    "name": "Московская обл.",
+    "lat": 55.75,
+    "lon": 37.61,
+    "climate_zone": "temperate",
+    "sown_area_ha": 600000,
+    "population": 8600000,
+    "is_border": false
+  },
+  {
+    "id": "oryol",
+    "name": "Орловская обл.",
+    "lat": 52.97,
+    "lon": 36.07,
+    "climate_zone": "black_earth",
+    "sown_area_ha": 1250000,
+    "population": 700000,
+    "is_border": false
+  },
+  {
+    "id": "ryazan",
+    "name": "Рязанская обл.",
+    "lat": 54.63,
+    "lon": 39.74,
+    "climate_zone": "temperate",
+    "sown_area_ha": 1050000,
+    "population": 1080000,
+    "is_border": false
+  },
+  {
+    "id": "smolensk",
+    "name": "Смоленская обл.",
+    "lat": 54.78,
+    "lon": 32.04,
+    "climate_zone": "temperate",
+    "sown_area_ha": 450000,
+    "population": 880000,
+    "is_border": false
+  },
+  {
+    "id": "tambov",
+    "name": "Тамбовская обл.",
+    "lat": 52.72,
+    "lon": 41.45,
+    "climate_zone": "black_earth",
+    "sown_area_ha": 1800000,
+    "population": 980000,
+    "is_border": false
+  },
+  {
+    "id": "tver",
+    "name": "Тверская обл.",
+    "lat": 56.86,
+    "lon": 35.9,
+    "climate_zone": "temperate",
+    "sown_area_ha": 500000,
+    "population": 1230000,
+    "is_border": false
+  },
+  {
+    "id": "tula",
+    "name": "Тульская обл.",
+    "lat": 54.19,
+    "lon": 37.62,
+    "climate_zone": "temperate",
+    "sown_area_ha": 900000,
+    "population": 1420000,
+    "is_border": false
+  },
+  {
+    "id": "yaroslavl",
+    "name": "Ярославская обл.",
+    "lat": 57.63,
+    "lon": 39.89,
+    "climate_zone": "temperate",
+    "sown_area_ha": 250000,
+    "population": 1200000,
+    "is_border": false
+  },
+  {
+    "id": "moscow_city",
+    "name": "г. Москва",
+    "lat": 55.76,
+    "lon": 37.62,
+    "climate_zone": "temperate",
+    "sown_area_ha": 0,
+    "population": 13000000,
+    "is_border": false
+  },
+  {
+    "id": "karelia",
+    "name": "Республика Карелия",
+    "lat": 61.78,
+    "lon": 34.35,
+    "climate_zone": "north",
+    "sown_area_ha": 25000,
+    "population": 600000,
+    "is_border": false
+  },
+  {
+    "id": "komi",
+    "name": "Республика Коми",
+    "lat": 61.67,
+    "lon": 50.84,
+    "climate_zone": "north",
+    "sown_area_ha": 30000,
+    "population": 730000,
+    "is_border": false
+  },
+  {
+    "id": "arkhangelsk",
+    "name": "Архангельская обл.",
+    "lat": 64.54,
+    "lon": 40.54,
+    "climate_zone": "north",
+    "sown_area_ha": 50000,
+    "population": 1000000,
+    "is_border": false
+  },
+  {
+    "id": "vologda",
+    "name": "Вологодская обл.",
+    "lat": 59.22,
+    "lon": 39.89,
+    "climate_zone": "temperate",
+    "sown_area_ha": 400000,
+    "population": 1120000,
+    "is_border": false
+  },
+  {
+    "id": "kaliningrad",
+    "name": "Калининградская обл.",
+    "lat": 54.71,
+    "lon": 20.51,
+    "climate_zone": "temperate",
+    "sown_area_ha": 250000,
+    "population": 1030000,
+    "is_border": false
+  },
+  {
+    "id": "leningrad_obl",
+    "name": "Ленинградская обл.",
+    "lat": 59.53,
+    "lon": 31.28,
+    "climate_zone": "temperate",
+    "sown_area_ha": 250000,
+    "population": 2000000,
+    "is_border": false
+  },
+  {
+    "id": "murmansk",
+    "name": "Мурманская обл.",
+    "lat": 68.97,
+    "lon": 33.07,
+    "climate_zone": "north",
+    "sown_area_ha": 0,
+    "population": 660000,
+    "is_border": false
+  },
+  {
+    "id": "novgorod",
+    "name": "Новгородская обл.",
+    "lat": 58.52,
+    "lon": 31.27,
+    "climate_zone": "temperate",
+    "sown_area_ha": 200000,
+    "population": 580000,
+    "is_border": false
+  },
+  {
+    "id": "pskov",
+    "name": "Псковская обл.",
+    "lat": 57.82,
+    "lon": 28.33,
+    "climate_zone": "temperate",
+    "sown_area_ha": 300000,
+    "population": 600000,
+    "is_border": false
+  },
+  {
+    "id": "nenets",
+    "name": "Ненецкий АО",
+    "lat": 67.64,
+    "lon": 53.0,
+    "climate_zone": "north",
+    "sown_area_ha": 0,
+    "population": 44000,
+    "is_border": false
+  },
+  {
+    "id": "spb",
+    "name": "г. Санкт-Петербург",
+    "lat": 59.94,
+    "lon": 30.31,
+    "climate_zone": "temperate",
+    "sown_area_ha": 0,
+    "population": 5600000,
+    "is_border": false
+  },
+  {
+    "id": "adygea",
+    "name": "Республика Адыгея (Адыгея)",
+    "lat": 44.61,
+    "lon": 40.1,
+    "climate_zone": "south",
+    "sown_area_ha": 250000,
+    "population": 500000,
+    "is_border": false
+  },
+  {
+    "id": "kalmykia",
+    "name": "Республика Калмыкия",
+    "lat": 46.31,
+    "lon": 44.27,
+    "climate_zone": "south",
+    "sown_area_ha": 300000,
+    "population": 270000,
+    "is_border": false
+  },
+  {
+    "id": "crimea",
+    "name": "Республика Крым",
+    "lat": 45.35,
+    "lon": 34.46,
+    "climate_zone": "south",
+    "sown_area_ha": 750000,
+    "population": 1900000,
+    "is_border": false
+  },
+  {
+    "id": "krasnodar",
+    "name": "Краснодарский край",
+    "lat": 45.04,
+    "lon": 38.98,
+    "climate_zone": "south",
+    "sown_area_ha": 3700000,
+    "population": 5800000,
+    "is_border": false
+  },
+  {
+    "id": "astrakhan",
+    "name": "Астраханская обл.",
+    "lat": 46.35,
+    "lon": 48.04,
+    "climate_zone": "south",
+    "sown_area_ha": 120000,
+    "population": 1000000,
+    "is_border": false
+  },
+  {
+    "id": "volgograd",
+    "name": "Волгоградская обл.",
+    "lat": 48.71,
+    "lon": 44.5,
+    "climate_zone": "south",
+    "sown_area_ha": 3000000,
+    "population": 2470000,
+    "is_border": false
+  },
+  {
+    "id": "rostov",
+    "name": "Ростовская обл.",
+    "lat": 47.22,
+    "lon": 39.72,
+    "climate_zone": "south",
+    "sown_area_ha": 4500000,
+    "population": 4200000,
+    "is_border": false
+  },
+  {
+    "id": "sevastopol",
+    "name": "город федерального значения Севастополь",
+    "lat": 44.62,
+    "lon": 33.53,
+    "climate_zone": "south",
+    "sown_area_ha": 10000,
+    "population": 560000,
+    "is_border": false
+  },
+  {
+    "id": "dagestan",
+    "name": "Республика Дагестан",
+    "lat": 42.98,
+    "lon": 47.5,
+    "climate_zone": "south",
+    "sown_area_ha": 350000,
+    "population": 3180000,
+    "is_border": false
+  },
+  {
+    "id": "ingushetia",
+    "name": "Республика Ингушетия",
+    "lat": 43.32,
+    "lon": 44.81,
+    "climate_zone": "south",
+    "sown_area_ha": 80000,
+    "population": 520000,
+    "is_border": false
+  },
+  {
+    "id": "kabardino_balkaria",
+    "name": "Кабардино-Балкарская Республика",
+    "lat": 43.48,
+    "lon": 43.6,
+    "climate_zone": "south",
+    "sown_area_ha": 300000,
+    "population": 900000,
+    "is_border": false
+  },
+  {
+    "id": "karachay_cherkessia",
+    "name": "Карачаево-Черкесская Республика",
+    "lat": 43.93,
+    "lon": 41.97,
+    "climate_zone": "south",
+    "sown_area_ha": 150000,
+    "population": 470000,
+    "is_border": false
+  },
+  {
+    "id": "north_ossetia",
+    "name": "Республика Северная Осетия - Алания",
+    "lat": 43.03,
+    "lon": 44.68,
+    "climate_zone": "south",
+    "sown_area_ha": 170000,
+    "population": 690000,
+    "is_border": false
+  },
+  {
+    "id": "chechnya",
+    "name": "Чеченская Республика",
+    "lat": 43.32,
+    "lon": 45.7,
+    "climate_zone": "south",
+    "sown_area_ha": 300000,
+    "population": 1500000,
+    "is_border": false
+  },
+  {
+    "id": "stavropol",
+    "name": "Ставропольский край",
+    "lat": 45.04,
+    "lon": 41.97,
+    "climate_zone": "south",
+    "sown_area_ha": 3000000,
+    "population": 2900000,
+    "is_border": false
+  },
+  {
+    "id": "bashkortostan",
+    "name": "Республика Башкортостан",
+    "lat": 54.74,
+    "lon": 56.0,
+    "climate_zone": "volga",
+    "sown_area_ha": 3000000,
+    "population": 4000000,
+    "is_border": false
+  },
+  {
+    "id": "mari_el",
+    "name": "Республика Марий Эл",
+    "lat": 56.63,
+    "lon": 47.9,
+    "climate_zone": "temperate",
+    "sown_area_ha": 330000,
+    "population": 670000,
+    "is_border": false
+  },
+  {
+    "id": "mordovia",
+    "name": "Республика Мордовия",
+    "lat": 54.18,
+    "lon": 45.18,
+    "climate_zone": "black_earth",
+    "sown_area_ha": 750000,
+    "population": 780000,
+    "is_border": false
+  },
+  {
+    "id": "tatarstan",
+    "name": "Республика Татарстан (Татарстан)",
+    "lat": 55.8,
+    "lon": 49.11,
+    "climate_zone": "volga",
+    "sown_area_ha": 2900000,
+    "population": 4000000,
+    "is_border": false
+  },
+  {
+    "id": "udmurtia",
+    "name": "Удмуртская Республика",
+    "lat": 56.85,
+    "lon": 53.21,
+    "climate_zone": "temperate",
+    "sown_area_ha": 1000000,
+    "population": 1440000,
+    "is_border": false
+  },
+  {
+    "id": "chuvashia",
+    "name": "Чувашская Республика - Чувашия",
+    "lat": 56.13,
+    "lon": 47.25,
+    "climate_zone": "volga",
+    "sown_area_ha": 550000,
+    "population": 1200000,
+    "is_border": false
+  },
+  {
+    "id": "kirov",
+    "name": "Кировская обл.",
+    "lat": 58.6,
+    "lon": 49.65,
+    "climate_zone": "temperate",
+    "sown_area_ha": 700000,
+    "population": 1150000,
+    "is_border": false
+  },
+  {
+    "id": "nizhny_novgorod",
+    "name": "Нижегородская обл.",
+    "lat": 56.33,
+    "lon": 44.0,
+    "climate_zone": "temperate",
+    "sown_area_ha": 1150000,
+    "population": 3100000,
+    "is_border": false
+  },
+  {
+    "id": "orenburg",
+    "name": "Оренбургская обл.",
+    "lat": 51.77,
+    "lon": 55.1,
+    "climate_zone": "volga",
+    "sown_area_ha": 4300000,
+    "population": 1860000,
+    "is_border": false
+  },
+  {
+    "id": "penza",
+    "name": "Пензенская обл.",
+    "lat": 53.2,
+    "lon": 45.0,
+    "climate_zone": "black_earth",
+    "sown_area_ha": 1500000,
+    "population": 1260000,
+    "is_border": false
+  },
+  {
+    "id": "samara",
+    "name": "Самарская обл.",
+    "lat": 53.2,
+    "lon": 50.15,
+    "climate_zone": "volga",
+    "sown_area_ha": 2000000,
+    "population": 3150000,
+    "is_border": false
+  },
+  {
+    "id": "saratov",
+    "name": "Саратовская обл.",
+    "lat": 51.53,
+    "lon": 46.03,
+    "climate_zone": "volga",
+    "sown_area_ha": 3800000,
+    "population": 2360000,
+    "is_border": false
+  },
+  {
+    "id": "ulyanovsk",
+    "name": "Ульяновская обл.",
+    "lat": 54.31,
+    "lon": 48.39,
+    "climate_zone": "volga",
+    "sown_area_ha": 1100000,
+    "population": 1200000,
+    "is_border": false
+  },
+  {
+    "id": "kurgan",
+    "name": "Курганская обл.",
+    "lat": 55.45,
+    "lon": 65.34,
+    "climate_zone": "west_siberia",
+    "sown_area_ha": 1400000,
+    "population": 800000,
+    "is_border": false
+  },
+  {
+    "id": "sverdlovsk",
+    "name": "Свердловская обл.",
+    "lat": 56.84,
+    "lon": 60.61,
+    "climate_zone": "temperate",
+    "sown_area_ha": 800000,
+    "population": 4250000,
+    "is_border": false
+  },
+  {
+    "id": "tyumen",
+    "name": "Тюменская обл.",
+    "lat": 57.15,
+    "lon": 65.53,
+    "climate_zone": "west_siberia",
+    "sown_area_ha": 1100000,
+    "population": 1550000,
+    "is_border": false
+  },
+  {
+    "id": "chelyabinsk",
+    "name": "Челябинская обл.",
+    "lat": 55.16,
+    "lon": 61.4,
+    "climate_zone": "volga",
+    "sown_area_ha": 1900000,
+    "population": 3400000,
+    "is_border": false
+  },
+  {
+    "id": "khanty_mansi",
+    "name": "Ханты-Мансийский АО - Югра",
+    "lat": 61.0,
+    "lon": 69.0,
+    "climate_zone": "north",
+    "sown_area_ha": 0,
+    "population": 1700000,
+    "is_border": false
+  },
+  {
+    "id": "yamal",
+    "name": "Ямало-Ненецкий АО",
+    "lat": 66.53,
+    "lon": 66.6,
+    "climate_zone": "north",
+    "sown_area_ha": 0,
+    "population": 510000,
+    "is_border": false
+  },
+  {
+    "id": "perm",
+    "name": "Пермский край",
+    "lat": 58.01,
+    "lon": 56.25,
+    "climate_zone": "temperate",
+    "sown_area_ha": 700000,
+    "population": 2500000,
+    "is_border": false
+  },
+  {
+    "id": "altai_republic",
+    "name": "Республика Алтай",
+    "lat": 51.96,
+    "lon": 85.96,
+    "climate_zone": "west_siberia",
+    "sown_area_ha": 110000,
+    "population": 210000,
+    "is_border": false
+  },
+  {
+    "id": "altai",
+    "name": "Алтайский край",
+    "lat": 53.35,
+    "lon": 83.78,
+    "climate_zone": "west_siberia",
+    "sown_area_ha": 5400000,
+    "population": 2150000,
+    "is_border": false
+  },
+  {
+    "id": "tyva",
+    "name": "Республика Тыва",
+    "lat": 51.72,
+    "lon": 94.45,
+    "climate_zone": "east_siberia",
+    "sown_area_ha": 50000,
+    "population": 330000,
+    "is_border": false
+  },
+  {
+    "id": "khakassia",
+    "name": "Республика Хакасия",
+    "lat": 53.72,
+    "lon": 91.43,
+    "climate_zone": "east_siberia",
+    "sown_area_ha": 250000,
+    "population": 530000,
+    "is_border": false
+  },
+  {
+    "id": "krasnoyarsk",
+    "name": "Красноярский край",
+    "lat": 56.01,
+    "lon": 92.87,
+    "climate_zone": "east_siberia",
+    "sown_area_ha": 1500000,
+    "population": 2850000,
+    "is_border": false
+  },
+  {
+    "id": "irkutsk",
+    "name": "Иркутская обл.",
+    "lat": 52.29,
+    "lon": 104.3,
+    "climate_zone": "east_siberia",
+    "sown_area_ha": 700000,
+    "population": 2350000,
+    "is_border": false
+  },
+  {
+    "id": "kemerovo",
+    "name": "Кемеровская обл. - Кузбасс",
+    "lat": 55.35,
+    "lon": 86.09,
+    "climate_zone": "west_siberia",
+    "sown_area_ha": 1000000,
+    "population": 2560000,
+    "is_border": false
+  },
+  {
+    "id": "novosibirsk",
+    "name": "Новосибирская обл.",
+    "lat": 55.03,
+    "lon": 82.92,
+    "climate_zone": "west_siberia",
+    "sown_area_ha": 2400000,
+    "population": 2780000,
+    "is_border": false
+  },
+  {
+    "id": "omsk",
+    "name": "Омская обл.",
+    "lat": 54.99,
+    "lon": 73.37,
+    "climate_zone": "west_siberia",
+    "sown_area_ha": 2900000,
+    "population": 1850000,
+    "is_border": false
+  },
+  {
+    "id": "tomsk",
+    "name": "Томская обл.",
+    "lat": 56.5,
+    "lon": 84.97,
+    "climate_zone": "west_siberia",
+    "sown_area_ha": 350000,
+    "population": 1070000,
+    "is_border": false
+  },
+  {
+    "id": "buryatia",
+    "name": "Республика Бурятия",
+    "lat": 51.83,
+    "lon": 107.58,
+    "climate_zone": "east_siberia",
+    "sown_area_ha": 150000,
+    "population": 980000,
+    "is_border": false
+  },
+  {
+    "id": "zabaikalsky_krai",
+    "name": "Забайкальский край",
+    "lat": 52.03,
+    "lon": 113.5,
+    "climate_zone": "east_siberia",
+    "sown_area_ha": 200000,
+    "population": 1000000,
+    "is_border": false
+  },
+  {
+    "id": "sakha",
+    "name": "Республика Саха (Якутия)",
+    "lat": 62.03,
+    "lon": 129.73,
+    "climate_zone": "north",
+    "sown_area_ha": 45000,
+    "population": 1000000,
+    "is_border": false
+  },
+  {
+    "id": "kamchatka",
+    "name": "Камчатский край",
+    "lat": 53.02,
+    "lon": 158.65,
+    "climate_zone": "north",
+    "sown_area_ha": 5000,
+    "population": 290000,
+    "is_border": false
+  },
+  {
+    "id": "primorsky",
+    "name": "Приморский край",
+    "lat": 43.12,
+    "lon": 131.93,
+    "climate_zone": "far_east",
+    "sown_area_ha": 500000,
+    "population": 1800000,
+    "is_border": false
+  },
+  {
+    "id": "khabarovsk",
+    "name": "Хабаровский край",
+    "lat": 48.48,
+    "lon": 135.08,
+    "climate_zone": "far_east",
+    "sown_area_ha": 80000,
+    "population": 1280000,
+    "is_border": false
+  },
+  {
+    "id": "amur",
+    "name": "Амурская обл.",
+    "lat": 50.29,
+    "lon": 127.54,
+    "climate_zone": "far_east",
+    "sown_area_ha": 1200000,
+    "population": 760000,
+    "is_border": false
+  },
+  {
+    "id": "magadan",
+    "name": "Магаданская обл.",
+    "lat": 59.56,
+    "lon": 150.8,
+    "climate_zone": "north",
+    "sown_area_ha": 0,
+    "population": 140000,
+    "is_border": false
+  },
+  {
+    "id": "sakhalin",
+    "name": "Сахалинская обл.",
+    "lat": 46.96,
+    "lon": 142.74,
+    "climate_zone": "far_east",
+    "sown_area_ha": 30000,
+    "population": 460000,
+    "is_border": false
+  },
+  {
+    "id": "jewish_ao",
+    "name": "Еврейская АО",
+    "lat": 48.48,
+    "lon": 132.93,
+    "climate_zone": "far_east",
+    "sown_area_ha": 150000,
+    "population": 150000,
+    "is_border": false
+  },
+  {
+    "id": "chukotka",
+    "name": "Чукотский АО",
+    "lat": 64.73,
+    "lon": 177.51,
+    "climate_zone": "north",
+    "sown_area_ha": 0,
+    "population": 48000,
+    "is_border": false
+  },
+  {
+    "id": "novorossiysk",
+    "name": "Новороссийск (порт)",
+    "lat": 44.72,
+    "lon": 37.77,
+    "climate_zone": "south",
+    "sown_area_ha": 0,
+    "population": 60000,
+    "is_border": true
+  },
+  {
+    "id": "vladivostok",
+    "name": "Владивосток (порт)",
+    "lat": 43.12,
+    "lon": 131.89,
+    "climate_zone": "far_east",
+    "sown_area_ha": 0,
+    "population": 40000,
+    "is_border": true
+  },
+  {
+    "id": "zabaikalsk",
+    "name": "Забайкальск (граница КНР)",
+    "lat": 49.65,
+    "lon": 117.32,
+    "climate_zone": "east_siberia",
+    "sown_area_ha": 0,
+    "population": 15000,
+    "is_border": true
+  },
+  {
+    "id": "orenburg_kz",
+    "name": "Оренбург (граница Казахстан)",
+    "lat": 51.77,
+    "lon": 55.1,
+    "climate_zone": "volga",
+    "sown_area_ha": 0,
+    "population": 250000,
+    "is_border": true
+  },
+  {
+    "id": "baltiysk",
+    "name": "Балтийск (порт, ЕС)",
+    "lat": 54.65,
+    "lon": 19.91,
+    "climate_zone": "temperate",
+    "sown_area_ha": 0,
+    "population": 35000,
+    "is_border": true
+  },
+  {
+    "id": "taman",
+    "name": "Тамань (глубоководный порт, Чёрное море)",
+    "lat": 45.21,
+    "lon": 36.72,
+    "climate_zone": "south",
+    "sown_area_ha": 0,
+    "population": 30000,
+    "is_border": true
+  },
+  {
+    "id": "azov_port",
+    "name": "Азов (порт, Азовское море)",
+    "lat": 47.11,
+    "lon": 39.42,
+    "climate_zone": "south",
+    "sown_area_ha": 0,
+    "population": 60000,
+    "is_border": true
+  },
+  {
+    "id": "yeysk",
+    "name": "Ейск (порт, Азовское море)",
+    "lat": 46.71,
+    "lon": 38.27,
+    "climate_zone": "south",
+    "sown_area_ha": 0,
+    "population": 45000,
+    "is_border": true
+  },
+  {
+    "id": "taganrog",
+    "name": "Таганрог (порт, Азовское море)",
+    "lat": 47.21,
+    "lon": 38.93,
+    "climate_zone": "south",
+    "sown_area_ha": 0,
+    "population": 50000,
+    "is_border": true
+  },
+  {
+    "id": "ust_luga",
+    "name": "Усть-Луга (порт, Балтика)",
+    "lat": 59.67,
+    "lon": 28.27,
+    "climate_zone": "temperate",
+    "sown_area_ha": 0,
+    "population": 40000,
+    "is_border": true
+  },
+  {
+    "id": "makhachkala",
+    "name": "Махачкала (порт, Каспийское море)",
+    "lat": 42.98,
+    "lon": 47.5,
+    "climate_zone": "south",
+    "sown_area_ha": 0,
+    "population": 60000,
+    "is_border": true
+  },
+  {
+    "id": "troitsk_kz",
+    "name": "Троицк (граница Казахстан, ж/д)",
+    "lat": 54.09,
+    "lon": 61.58,
+    "climate_zone": "volga",
+    "sown_area_ha": 0,
+    "population": 50000,
+    "is_border": true
+  },
+  {
+    "id": "nizhneleninskoye",
+    "name": "Нижнеленинское (ж/д мост в КНР, ЕАО)",
+    "lat": 47.93,
+    "lon": 130.98,
+    "climate_zone": "far_east",
+    "sown_area_ha": 0,
+    "population": 20000,
+    "is_border": true
+  }
+]

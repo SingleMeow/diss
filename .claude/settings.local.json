@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p backend/app/api backend/app/core backend/app/schemas backend/app/simulation/agents backend/app/simulation/market backend/app/data backend/tests frontend/src/components frontend/src/pages frontend/src/api)",
+      "Read(//c/c/Users/Владимир/Desktop/**)",
+      "Bash(rm -rf \"/c/Users/Владимир/Desktop/диссback\" && ls \"/c/Users/Владимир/Desktop/\" | head -30)",
+      "Read(//c/Users/Владимир/Desktop//**)",
+      "Bash(python -c ' *)",
+      "Bash(npx tsc *)",
+      "Bash(python -c \"import fastapi, uvicorn; print\\('deps ok'\\)\")",
+      "Bash(pip show *)",
+      "Bash(py -3 -c \"import fastapi\")",
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/python.exe -m pip install -q -r requirements.txt)",
+      "Bash(.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000)",
+      "Bash(disown)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(npx --yes playwright --version)",
+      "Bash(npm install *)",
+      "Bash(node /tmp/screenshot_test.mjs)",
+      "Bash(cp /tmp/screenshot_test.mjs \"/c/Users/Владимир/Desktop/diss/frontend/screenshot_test.mjs\")",
+      "Bash(node screenshot_test.mjs)",
+      "Bash(find / -name \"04-map.png\" 2>/dev/null)",
+      "Read(//c//**)",
+      "Bash(powershell -Command 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match '\\\\''uvicorn app.main'\\\\'' -or $_.CommandLine -match '\\\\''vite'\\\\'' } | ForEach-Object { Write-Host \"Killing PID $\\($_.ProcessId\\): $\\($_.CommandLine\\)\"; Stop-Process -Id $_.ProcessId -Force }')",
+      "Bash(python3 -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 python3 -c ' *)",
+      "Bash(iconv -f utf-8 -t utf-8 /tmp/region_names.txt)",
+      "Bash(python generate_regions.py)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q)"
+    ]
+  }
+}

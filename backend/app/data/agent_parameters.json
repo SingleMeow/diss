@@ -1,0 +1,461 @@
+{
+  "comment": "Single source of truth for all tunable model parameters. Edit this file to change model behavior without touching code.",
+  "farmer_defaults": {
+    "target_margin": 0.2,
+    "target_margin_range": [
+      0.12,
+      0.2
+    ],
+    "base_sell_fraction": 0.25,
+    "base_sell_fraction_range": [
+      0.18,
+      0.35
+    ],
+    "price_adaptation_speed": 0.9,
+    "price_adaptation_speed_range": [
+      0.8,
+      0.9
+    ],
+    "credit_rate_per_month": 0.008,
+    "comment_credit_rate": "Monthly interest on negative cash (~10%/year)",
+    "fixed_cost_per_ha_per_year": 9000,
+    "comment_fixed_cost": "Annual fixed operating cost per hectare (land rent + machinery depreciation + admin/overhead), charged monthly as area*cost/12 regardless of activity. This is the margin pressure that makes insolvency, exit and entry meaningful; sowing_cost_per_ha alone leaves margins permanently fat. 0 disables."
+  },
+  "farmer_area_and_storage": {
+    "comment": "Random ranges for newly generated farmers (farm-size range is now per climate zone — see climate_zones)",
+    "storage_capacity_multiplier_range": [
+      0.6,
+      1.4
+    ],
+    "initial_cash_per_ha_range": [
+      20000,
+      35000
+    ]
+  },
+  "climate_zones": {
+    "comment": "Agro-climatic zones (must match the ClimateZone enum in geo.py). yield_multiplier scales EVERY crop's base yield in that zone (south best, north worst — season length, heat, moisture). cost_multiplier scales sowing + fixed costs (land rent, inputs, labour) — lower in Siberia/north, so low-yield zones stay viable on cheaper land instead of all going bankrupt; the south is most profitable but not the only viable zone. farmer_area_ha_range is the typical farm-size range there.",
+    "south": {
+      "name": "Юг и Северный Кавказ",
+      "yield_multiplier": 1.15,
+      "cost_multiplier": 1.1,
+      "farmer_area_ha_range": [
+        600,
+        9000
+      ]
+    },
+    "black_earth": {
+      "name": "Центральное Черноземье",
+      "yield_multiplier": 1.05,
+      "cost_multiplier": 1.04,
+      "farmer_area_ha_range": [
+        500,
+        8000
+      ]
+    },
+    "volga": {
+      "name": "Поволжье и Южный Урал",
+      "yield_multiplier": 0.85,
+      "cost_multiplier": 0.88,
+      "farmer_area_ha_range": [
+        600,
+        11000
+      ]
+    },
+    "temperate": {
+      "name": "Нечерноземье и Северо-Запад",
+      "yield_multiplier": 0.88,
+      "cost_multiplier": 0.92,
+      "farmer_area_ha_range": [
+        300,
+        4000
+      ]
+    },
+    "west_siberia": {
+      "name": "Западная Сибирь",
+      "yield_multiplier": 0.8,
+      "cost_multiplier": 0.82,
+      "farmer_area_ha_range": [
+        600,
+        12000
+      ]
+    },
+    "east_siberia": {
+      "name": "Восточная Сибирь",
+      "yield_multiplier": 0.72,
+      "cost_multiplier": 0.76,
+      "farmer_area_ha_range": [
+        400,
+        6000
+      ]
+    },
+    "far_east": {
+      "name": "Дальний Восток",
+      "yield_multiplier": 0.85,
+      "cost_multiplier": 0.88,
+      "farmer_area_ha_range": [
+        400,
+        6000
+      ]
+    },
+    "north": {
+      "name": "Север и Крайний Север",
+      "yield_multiplier": 0.55,
+      "cost_multiplier": 0.7,
+      "farmer_area_ha_range": [
+        200,
+        2000
+      ]
+    }
+  },
+  "farmer_behavior": {
+    "comment": "Algorithm constants governing farmer decision logic",
+    "demand_price_premium": 0.03,
+    "comment_demand_premium": "Max fractional uplift applied to clearing price when buyer demand exceeds supply (fill_rate=0 → price * (1 + premium)). Provides the upward price signal that balances the downward storage-discount pressure and restores cobweb oscillation.",
+    "surplus_bargaining_power": 0.35,
+    "comment_surplus_bargaining": "Seller's share of the buyer surplus in the search market's surplus-split pricing. Each trade executes at ask + this * max(0, (buyer_valuation - transport) - ask), so the demand side lifts the price toward (but never above) the buyer's willingness-to-pay even without scarcity. 0 = buyer pays the seller's ask (old behaviour); 1 = buyer pays its full valuation. NOTE: empirically the dominant driver of within-year price oscillation (each trade is repriced toward the matched buyer's valuation, and monthly buyer/seller re-pairing injects noise), so lowered from 0.5 to 0.35 to damp it.",
+    "cash_ema_alpha": 0.12,
+    "comment_ema": "EMA smoothing for monthly cash-flow profitability signal (half-life ~8 months)",
+    "sale_expectation_smoothing": 0.5,
+    "comment_sale_expectation": "Adaptation α for the TRADING (reservation) price belief that prices monthly sale offers, kept SEPARATE from price_adaptation_speed (the PLANTING belief) so the two timescales tune independently. Kept responsive on purpose: a laggy ask worsens within-year oscillation. The dominant within-year driver is surplus_bargaining_power, not this.",
+    "crop_rotation_group_weight": 0.5,
+    "comment_rotation": "(legacy) Fraction of sibling-group area blocked by the old rotation constraint; superseded by per-crop max_area_share in crops.json",
+    "acreage_inertia": 0.5,
+    "comment_acreage_inertia": "Nerlovian partial adjustment on ACREAGE: a farm's new sowing mix = inertia*last_year + (1-inertia)*margin_target. Captures sunk equipment, agronomic familiarity and contracts that make last year's mix sticky. 0 = jump to the margin-optimal mix each year (volatile); ~0.5-0.7 = realistic gradual reallocation. Equilibrium mix is set by margins within each crop's max_area_share cap.",
+    "storage_fill_pressure_multiplier": 0.3,
+    "comment_fill_pressure": "Extra sell-fraction added per unit fill above storage_fill_threshold",
+    "storage_fill_threshold": 0.5,
+    "comment_fill_threshold": "Fill ratio above which storage pressure increases sell fraction",
+    "max_storage_discount": 0.35,
+    "comment_max_discount": "Maximum price discount applied when storage is very full",
+    "discount_activation_threshold": 0.3,
+    "comment_discount_activation": "Fill ratio above which price discount begins to apply",
+    "discount_ramp_rate": 0.45,
+    "comment_discount_ramp": "Slope of discount vs (fill_ratio - activation_threshold). Softened (was 0.6) to damp the within-year storage-discount feedback swing.",
+    "low_fill_pressure_multiplier": 0.6,
+    "comment_low_fill": "Sell-fraction damping when storage fill is below threshold"
+  },
+  "buyer_defaults": {
+    "processing_margin": 0.25,
+    "flexibility": 0.5,
+    "comment": "flexibility in [0,1]: 0=price-disciplined, 1=buy-at-any-price",
+    "max_debt": 50000000
+  },
+  "buyer_behavior": {
+    "comment": "Algorithm constants governing buyer decision logic",
+    "fallback_target_price_markup": 1.15,
+    "comment_markup": "Markup over observed market price used as target when no output_price is configured (e.g. traders)",
+    "trader_resale_markup": 1.05,
+    "comment_resale": "Markup over market price at which traders book resale revenue in consume()",
+    "actual_cost_ema_alpha": 0.3,
+    "comment_cost_ema": "EMA smoothing for tracking actual price paid vs target (demand contraction)",
+    "target_inventory_months": 2.0,
+    "comment_inventory": "Desired raw-material cover in months of consumption; buyers purchase toward this level (capped by storage capacity) and consume one month's worth, so they carry a buffer instead of running at zero stock"
+  },
+  "buyer_demand_contraction": {
+    "enabled": true,
+    "comment": "When enabled, buyers reduce consumption if they pay too much for too long and recover when prices fall back",
+    "price_overage_threshold_pct": 20.0,
+    "comment_threshold": "Contraction: price EMA must exceed target by >N% to count as an overpayment month",
+    "consecutive_months_required": 6,
+    "comment_months": "Contraction: triggers after N consecutive overpayment months",
+    "consumption_reduction_rate": 0.15,
+    "comment_reduction": "Contraction: reduce monthly_consumption by this fraction per trigger",
+    "expansion_undershoot_threshold_pct": 5.0,
+    "comment_expansion_threshold": "Expansion: price EMA must be at least N% BELOW target to count as an underpayment month",
+    "expansion_consecutive_months_required": 3,
+    "comment_expansion_months": "Expansion: triggers after N consecutive underpayment months",
+    "expansion_recovery_rate": 0.1,
+    "comment_expansion_recovery": "Expansion: recover this fraction of the gap to baseline consumption per trigger (never exceeds original baseline)"
+  },
+  "buyer_profiles": {
+    "comment": "Crops here are MARKET GOODS (see crops.json:market_good) — buyers trade fungible commodities (wheat), not agronomic varieties (winter/spring wheat). Mills/processors derive their input target price from output_prices net of processing_margin.",
+    "flour_mill": {
+      "crops": [
+        "wheat",
+        "rye",
+        "triticale"
+      ],
+      "monthly_consumption_range_tons": [
+        800,
+        4000
+      ],
+      "flexibility_range": [
+        0.55,
+        0.85
+      ],
+      "processing_margin": 0.28,
+      "output_prices": {
+        "wheat": 20000,
+        "rye": 17000,
+        "triticale": 16000
+      }
+    },
+    "feed_producer": {
+      "crops": [
+        "corn",
+        "barley",
+        "oats",
+        "soybean",
+        "peas",
+        "rapeseed",
+        "triticale",
+        "millet"
+      ],
+      "monthly_consumption_range_tons": [
+        500,
+        3000
+      ],
+      "flexibility_range": [
+        0.45,
+        0.75
+      ],
+      "processing_margin": 0.22,
+      "output_prices": {
+        "corn": 28000,
+        "barley": 24000,
+        "oats": 20000,
+        "soybean": 55000,
+        "peas": 30000,
+        "rapeseed": 52000,
+        "triticale": 22000,
+        "millet": 22000
+      }
+    },
+    "food_processor": {
+      "crops": [
+        "sunflower",
+        "soybean",
+        "wheat",
+        "rapeseed",
+        "mustard",
+        "buckwheat",
+        "rice",
+        "linseed"
+      ],
+      "monthly_consumption_range_tons": [
+        300,
+        2200
+      ],
+      "flexibility_range": [
+        0.5,
+        0.8
+      ],
+      "processing_margin": 0.32,
+      "output_prices": {
+        "sunflower": 70000,
+        "soybean": 60000,
+        "wheat": 20000,
+        "rapeseed": 56000,
+        "mustard": 38000,
+        "buckwheat": 55000,
+        "rice": 50000,
+        "linseed": 56000
+      }
+    },
+    "trader": {
+      "crops": [
+        "wheat",
+        "barley",
+        "corn",
+        "sunflower",
+        "soybean",
+        "rye",
+        "triticale",
+        "oats",
+        "peas",
+        "buckwheat",
+        "millet",
+        "rice",
+        "linseed",
+        "rapeseed",
+        "mustard"
+      ],
+      "monthly_consumption_range_tons": [
+        1000,
+        6000
+      ],
+      "flexibility_range": [
+        0.1,
+        0.4
+      ],
+      "processing_margin": 0.0,
+      "output_prices": {}
+    }
+  },
+  "buyer_initial_cash": {
+    "range_rubles": [
+      5000000,
+      20000000
+    ],
+    "storage_capacity_multiplier": [
+      2.5,
+      5.0
+    ]
+  },
+  "exporter_defaults": {
+    "flexibility": 0.95,
+    "initial_cash_rubles": 50000000,
+    "storage_capacity_tons": 1000000
+  },
+  "government_defaults": {
+    "intervention_volume_share": 0.15,
+    "comment": "Max share of a region's traded volume the government moves per intervention per month",
+    "direct_tax_rate": 0.06,
+    "comment_direct_tax": "Flat direct tax withheld from the seller's revenue on every deal (e.g. 6% ≈ УСН «доходы»)"
+  },
+  "world_config": {
+    "price_history_window_months": 12,
+    "comment_window": "Months of price/volume history retained and exposed to agents",
+    "demand_center_lat": 53.0,
+    "demand_center_lon": 50.0,
+    "comment_demand_center": "Reference point (Samara/Saratov corridor) for transport-discount on national avg price"
+  },
+  "scenario_defaults": {
+    "seed": 42,
+    "num_farmers": 150,
+    "num_buyers": 45,
+    "farmer_location_jitter_deg": 0.6,
+    "comment_farmer_jitter": "Max lat/lon offset in degrees when placing farmers within their region",
+    "buyer_location_jitter_deg": 0.4,
+    "comment_buyer_jitter": "Max lat/lon offset in degrees when placing buyers within their region",
+    "crops_per_farmer_range": [
+      3,
+      6
+    ],
+    "comment_farmer_crops": "Range for how many crop types each generated farmer grows (sampled from crops suitable for its zone; a southern/temperate mix will typically include both winter and spring crops, giving two harvests/year)",
+    "staple_market_goods": [
+      "wheat"
+    ],
+    "comment_staple": "Market goods almost every grain farm grows: at least one zone-suitable variety of each is forced into every farm's crop list, so wheat is near-universal (as in reality) and acts as the high-cap residual filler in the planting allocation",
+    "crops_per_buyer_range": [
+      1,
+      3
+    ],
+    "comment_buyer_crops": "Range for how many crop types each generated buyer handles",
+    "empty_region_entry_baseline_fraction": 0.05,
+    "comment_entry_baseline": "Entry probability for a region with no farmers (fraction of max_rate)",
+    "max_debt_per_ha_multiplier": 20000,
+    "comment_max_debt_ha": "RUB/ha multiplier used to set per-farmer max_debt floor",
+    "farmer_fallback_cash_per_ha": 27000,
+    "comment_farmer_cash": "Initial cash (RUB/ha) for hand-placed extra_farmers without an explicit cash field",
+    "buyer_fallback_cash_rubles": 10000000,
+    "comment_buyer_cash": "Initial cash (RUB) for hand-placed extra_buyers without an explicit cash field",
+    "market_scale_reference_farmers": 10000,
+    "comment_scale_ref": "Farmer count at which exporter capacities in border_points.json are at real-world scale"
+  },
+  "farm_lifecycle": {
+    "farm_closure_months": 24,
+    "comment_closure": "Consecutive insolvent months before a farm is automatically closed",
+    "farm_entry_rate_max": 0.2,
+    "comment_entry_rate": "Maximum annual probability of a new farm entering a region",
+    "farm_entry_profitability_ha": 4000.0,
+    "comment_entry_profit": "RUB/ha/month EMA at which regional entry probability reaches farm_entry_rate_max",
+    "farmer_max_debt": 20000000,
+    "comment_farmer_debt": "RUB — farmer suspends planting beyond this debt",
+    "buyer_max_debt": 50000000,
+    "comment_buyer_debt": "RUB — buyer suspends purchases beyond this debt",
+    "buyer_closure_months": 24,
+    "comment_buyer_closure": "Consecutive insolvent months before a buyer (processor/trader) is automatically closed",
+    "buyer_entry_rate_max": 0.15,
+    "comment_buyer_entry_rate": "Maximum annual probability of a new buyer entering a populated region",
+    "buyer_entry_profitability": 2000000.0,
+    "comment_buyer_entry_profit": "RUB/month cash-EMA at which regional buyer entry probability reaches buyer_entry_rate_max"
+  },
+  "weather": {
+    "comment": "Variance decomposition of the multiplicative yield shock into shared national + regional factors plus an idiosyncratic farm draw. Weights must sum to 1; each farm's marginal yield volatility stays equal to the crop's yield_volatility — only the CORRELATION across farms changes. Raising the national/regional weights produces synchronised good/bad harvest years (real source of price cycles). All-idiosyncratic (0/0/1) reproduces the old independent-draw behaviour.",
+    "national_weight": 0.4,
+    "regional_weight": 0.35,
+    "idiosyncratic_weight": 0.25
+  },
+  "world_dynamics": {
+    "comment": "Exogenous global-market state. The deterministic seasonal world_prices series is scaled each month by a global commodity shock and the RUB/USD rate, both mean-reverting AR(1) processes in log space. Set volatilities to 0 for a purely deterministic world-price feed.",
+    "fx_base": 90.0,
+    "comment_fx_base": "Reference RUB/USD the base world_prices series is quoted at",
+    "fx_volatility": 0.025,
+    "comment_fx_vol": "Monthly stdev of log RUB/USD changes (0 = fixed FX)",
+    "fx_reversion": 0.05,
+    "comment_fx_rev": "AR(1) pull of the FX rate back toward fx_base per month",
+    "world_price_volatility": 0.04,
+    "comment_wp_vol": "Monthly stdev of the log global commodity-price shock (0 = deterministic)",
+    "world_price_reversion": 0.1,
+    "comment_wp_rev": "AR(1) pull of the commodity shock back toward 1.0 per month"
+  },
+  "world_prices": {
+    "comment": "Base FOB price (RUB/ton), seasonal amplitude (fraction of base), and peak month (1-12) per MARKET GOOD (see crops.json:market_good — one price per traded commodity, shared by its winter and spring varieties).",
+    "wheat": {
+      "base": 21000,
+      "amplitude": 0.08,
+      "peak_month": 6
+    },
+    "barley": {
+      "base": 18000,
+      "amplitude": 0.07,
+      "peak_month": 6
+    },
+    "rye": {
+      "base": 16000,
+      "amplitude": 0.07,
+      "peak_month": 5
+    },
+    "triticale": {
+      "base": 15500,
+      "amplitude": 0.07,
+      "peak_month": 5
+    },
+    "oats": {
+      "base": 13000,
+      "amplitude": 0.07,
+      "peak_month": 7
+    },
+    "millet": {
+      "base": 16000,
+      "amplitude": 0.09,
+      "peak_month": 7
+    },
+    "buckwheat": {
+      "base": 34000,
+      "amplitude": 0.1,
+      "peak_month": 8
+    },
+    "peas": {
+      "base": 22000,
+      "amplitude": 0.07,
+      "peak_month": 7
+    },
+    "corn": {
+      "base": 19000,
+      "amplitude": 0.09,
+      "peak_month": 8
+    },
+    "sunflower": {
+      "base": 53000,
+      "amplitude": 0.06,
+      "peak_month": 8
+    },
+    "soybean": {
+      "base": 48000,
+      "amplitude": 0.07,
+      "peak_month": 8
+    },
+    "rice": {
+      "base": 36000,
+      "amplitude": 0.06,
+      "peak_month": 8
+    },
+    "rapeseed": {
+      "base": 53000,
+      "amplitude": 0.07,
+      "peak_month": 7
+    },
+    "mustard": {
+      "base": 35000,
+      "amplitude": 0.09,
+      "peak_month": 8
+    },
+    "linseed": {
+      "base": 42000,
+      "amplitude": 0.08,
+      "peak_month": 8
+    }
+  }
+}
