@@ -1,0 +1,18 @@
+# .gitignore in project root — ignore the docs folder as requested
+/docs/
+
+# (Optional) Common ignores
+*.pyc
+__pycache__/
+.venv/
+.env
+node_modules/
+build/
+dist/
+*.log
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+*.swp
+*~
