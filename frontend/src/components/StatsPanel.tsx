@@ -72,6 +72,8 @@ export default function StatsPanel({ state, history, crops, agents }: Props) {
     ? farmers.reduce((s, f) => s + (f.storage_capacity_tons > 0 ? f.storage_tons / f.storage_capacity_tons : 0), 0) / farmers.length
     : 0;
 
+  const sumRec = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0);
+
   const avgBuyerCash  = buyers.length  ? buyers.reduce((s, b) => s + b.cash, 0) / buyers.length : 0;
   const avgBuyerFill  = buyers.length
     ? buyers.reduce((s, b) => s + (b.storage_capacity_tons > 0 ? b.storage_tons / b.storage_capacity_tons : 0), 0) / buyers.length
@@ -79,8 +81,19 @@ export default function StatsPanel({ state, history, crops, agents }: Props) {
   const buyerNegativeCash = buyers.filter(b => b.cash < 0).length;
   const buyerSuspended    = buyers.filter(b => b.insolvent_months > 0).length;
 
+  // Price-elastic demand response: current throughput vs pre-shock baseline,
+  // averaged across buyers (>100% = demand expanded, <100% = contracted).
+  const buyersWithBaseline = buyers.filter(b => sumRec(b.monthly_consumption_baseline) > 0);
+  const avgDemandResponse = buyersWithBaseline.length
+    ? buyersWithBaseline.reduce((s, b) => s + sumRec(b.monthly_consumption) / sumRec(b.monthly_consumption_baseline), 0) / buyersWithBaseline.length
+    : 1;
+
   const exporterTotalShipped = exporters.reduce((sum, e) =>
     sum + Object.values(e.shipped_total).reduce((s, v) => s + v, 0), 0);
+  // Price-responsive export volume: current margin-flexed target vs contract.
+  const expContract = exporters.reduce((s, e) => s + sumRec(e.monthly_capacity_tons), 0);
+  const expTarget   = exporters.reduce((s, e) => s + sumRec(e.ship_target), 0);
+  const exportResponse = expContract > 0 && expTarget > 0 ? expTarget / expContract : NaN;
 
   const totalClosed  = history.reduce((s, h) => s + (h.farms_closed  ?? 0), 0);
   const totalSpawned = history.reduce((s, h) => s + (h.farms_spawned ?? 0), 0);
@@ -227,6 +240,12 @@ export default function StatsPanel({ state, history, crops, agents }: Props) {
                 sub={buyers.length ? `${Math.round(buyerNegativeCash / buyers.length * 100)}%` : undefined}
                 color={buyerNegativeCash > 0 ? "#e07b39" : undefined} />
               <StatCard label="Ср. заполнение" value={`${Math.round(avgBuyerFill * 100)}%`} />
+              <StatCard
+                label="Спрос к базе"
+                value={`${fmt(avgDemandResponse * 100)}%`}
+                sub={avgDemandResponse < 1 ? "сжатие спроса" : avgDemandResponse > 1 ? "рост спроса" : "норма"}
+                color={avgDemandResponse < 0.98 ? "#c0392b" : avgDemandResponse > 1.02 ? "#2c6e49" : undefined}
+              />
               {buyerSuspended > 0 && <StatCard label="Приостановлено" value={buyerSuspended} color="#e07b39" />}
               {lastStep && <StatCard label="Зерно у покупателей" value={fmt(lastStep.total_buyer_storage) + " т"} />}
             </div>
@@ -248,6 +267,14 @@ export default function StatsPanel({ state, history, crops, agents }: Props) {
                 />
               ))}
               <StatCard label="Всего отгружено" value={fmt(exporterTotalShipped) + " т"} />
+              {Number.isFinite(exportResponse) && (
+                <StatCard
+                  label="Вывоз к контракту"
+                  value={`${fmt(exportResponse * 100)}%`}
+                  sub={exportResponse < 1 ? "придерживают" : exportResponse > 1 ? "наращивают" : "норма"}
+                  color={exportResponse < 0.98 ? "#c0392b" : exportResponse > 1.02 ? "#2c6e49" : undefined}
+                />
+              )}
             </div>
           </>
         )}

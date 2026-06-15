@@ -101,7 +101,6 @@ class Farmer:
     # responsive. (The dominant within-year driver is surplus_bargaining_power,
     # tuned in the search market, not this.)
     sale_expectation_smoothing: float = 0.5
-    crop_rotation_group_weight: float = 0.5   # legacy, no longer used (superseded by crop.max_area_share)
     acreage_inertia: float = 0.5              # Nerlovian partial adjustment on the sowing mix (0 = jump to margin-optimal each year)
     storage_fill_pressure_multiplier: float = 0.5
     storage_fill_threshold: float = 0.5
@@ -443,10 +442,16 @@ class Farmer:
     def receive_payment(self, amount: float) -> None:
         self.cash += amount
 
-    def return_unsold(self, crop_id: str, quantity: float) -> None:
+    def return_unsold(self, crop_id: str, quantity: float) -> float:
+        """Put unsold offered grain back into storage, capped by free space.
+        Returns the tonnage actually re-stored; any shortfall (quantity minus
+        the return value) is grain that no longer fits and is lost — see
+        `SimulationEngine._return_unsold_offers`."""
         if quantity <= 0:
-            return
+            return 0.0
         current = self.storage.get(crop_id, 0.0)
         total_other = sum(v for k, v in self.storage.items() if k != crop_id)
         space = max(self.storage_capacity_tons - total_other - current, 0.0)
-        self.storage[crop_id] = current + min(quantity, space)
+        stored = min(quantity, space)
+        self.storage[crop_id] = current + stored
+        return stored

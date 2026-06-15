@@ -7,6 +7,8 @@ dicts/dataclasses to JSON natively).
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -84,6 +86,7 @@ class CustomBuyerIn(BaseModel):
     output_price_series: dict[str, list[float]] = Field(default_factory=dict)  # overrides output_price
     processing_margin: float | None = None
     flexibility: float | None = Field(default=None, ge=0.0, le=1.0)
+    demand_elasticity: float | None = Field(default=None, ge=0.0)  # price-elasticity of this buyer's demand
     max_debt: float | None = None
     cash: float | None = None
 
@@ -106,8 +109,8 @@ class ScenarioConfigIn(BaseModel):
     start_year: int = 2024
     start_month: int = Field(default=1, ge=1, le=12)
 
-    num_farmers: int = Field(default=150, ge=1, le=5000)
-    num_buyers: int = Field(default=45, ge=1, le=2000)
+    num_farmers: int = Field(default=150, ge=1, le=100_000)
+    num_buyers: int = Field(default=45, ge=1, le=50_000)
 
     # market_scale: multiplier on exporter monthly_capacity_tons.
     # None = auto (num_farmers / 10 000); 1.0 = real-world throughput scale.
@@ -165,6 +168,16 @@ class ScenarioConfigIn(BaseModel):
 
 class StepRequest(BaseModel):
     n: int = Field(default=1, ge=1, le=240)
+
+
+class AddAgentRequest(BaseModel):
+    """Add a single agent to the *running* world (mid-scenario). Supply the
+    block matching `kind`; the others are ignored. Reuses the same custom-agent
+    specs the scenario builder accepts at start time."""
+    kind: Literal["farmer", "buyer", "exporter"]
+    farmer: CustomFarmerIn | None = None
+    buyer: CustomBuyerIn | None = None
+    exporter: CustomExporterIn | None = None
 
 
 # --------------------------------------------------------------------- live "scenario manipulation"

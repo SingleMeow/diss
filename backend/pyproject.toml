@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agri-market-sim"
+version = "0.1.0"
+description = "Agent-based simulation of the Russian agri-food market (grain + oilseeds), monthly time step."
+readme = "../README.md"
+# Developed and tested on CPython 3.14 (the venv at backend/.venv).
+requires-python = ">=3.14"
+
+# Direct runtime dependencies, pinned to the versions the test suite is green
+# on (see requirements.txt for the same pins as a flat install file). For a
+# dissertation artifact reproducibility matters more than floating to the
+# latest release, so these are exact pins rather than lower bounds.
+dependencies = [
+    "fastapi==0.136.3",
+    "uvicorn[standard]==0.49.0",
+    "pydantic==2.13.4",
+    # Not exercised by the current API (all request bodies are JSON), kept so
+    # FastAPI form/multipart endpoints work if added later.
+    "python-multipart==0.0.32",
+]
+
+[project.optional-dependencies]
+# Install with:  pip install -e ".[dev]"
+dev = [
+    "pytest==9.0.3",
+    # Enables fastapi.testclient.TestClient for any future API-level tests; the
+    # current suite drives the engine directly and does not import it.
+    "httpx==0.28.1",
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -29,10 +29,15 @@ class SimulationSession:
 
     # ------------------------------------------------------------------ lifecycle
     def start(self, config: ScenarioConfig, config_dict: dict) -> dict:
+        # Ensure the persistence schema exists even when the session is driven
+        # directly (tests, scripts) rather than through the app's lifespan hook.
+        # init_db is idempotent (CREATE TABLE IF NOT EXISTS).
+        db.init_db()
         self.world = build_world(config)
         self.engine = SimulationEngine(self.world)
         self.run_id = db.create_run(config_dict)
         self.step_index = 0
+        self._persist_snapshot()   # capture the initial (pre-step) state so a 0-step run still loads
         return self.state()
 
     def _require(self) -> World:
@@ -50,7 +55,21 @@ class SimulationSession:
                 db.save_step(self.run_id, self.step_index, record)
             self.step_index += 1
             records.append(record)
+        # One rolling snapshot per batch (not per month): the export ledger and
+        # price archive are cumulative, so the latest snapshot captures the whole
+        # run's exports/market while keeping the write cost bounded on big steps.
+        self._persist_snapshot()
         return records
+
+    def _persist_snapshot(self) -> None:
+        """Overwrite this run's rolling snapshot with the current derived views."""
+        if self.run_id is None:
+            return
+        db.save_snapshot(
+            self.run_id, self.step_index,
+            state=self.state(), agents=self.agents(),
+            exports=self.exports(), market=self.market_history(),
+        )
 
     # ------------------------------------------------------------------ live manipulation
     def intervene(self, payload) -> dict:
@@ -182,52 +201,117 @@ class SimulationSession:
             "last_step": w.step_log[-1] if w.step_log else None,
         }
 
+    # ------------------------------------------------------------------ agent serialisers
+    @staticmethod
+    def _farmer_dict(f) -> dict:
+        return {
+            "id": f.id, "type": "farmer", "name": f.name,
+            "lat": f.lat, "lon": f.lon, "region_id": f.region_id,
+            "climate_zone": f.climate_zone.value,
+            "total_area_ha": f.total_area_ha,
+            "storage_capacity_tons": f.storage_capacity_tons,
+            "storage_tons": round(sum(f.storage.values()), 2),
+            "storage_by_crop": {k: round(v, 2) for k, v in f.storage.items() if v > 1e-6},
+            "planted_area": {str(idx): dict(alloc) for idx, alloc in f.planted_area.items()},
+            "allowed_crop_ids": f.allowed_crop_ids,
+            "expected_price": {k: round(v, 2) for k, v in f.expected_price.items()},
+            "cash": round(f.cash, 2),
+            "insolvent_months": f.insolvent_months,
+            "cash_ema": round(f.cash_ema, 2) if f.cash_ema is not None else None,
+        }
+
+    @staticmethod
+    def _buyer_dict(b) -> dict:
+        return {
+            "id": b.id, "type": "buyer", "name": b.name,
+            "lat": b.lat, "lon": b.lon, "region_id": b.region_id,
+            "buyer_type": b.buyer_type.value,
+            "monthly_consumption": {k: round(v, 2) for k, v in b.monthly_consumption.items()},
+            # Pre-shock baseline throughput — current vs this shows the price-elastic demand response.
+            "monthly_consumption_baseline": {k: round(v, 2) for k, v in b.monthly_consumption_baseline.items()},
+            "demand_elasticity": b.demand_elasticity,
+            "target_inventory_months": b.target_inventory_months,
+            # Smoothed mean-reversion price anchor driving strategic inventory.
+            "expected_price": {k: round(v, 2) for k, v in b.expected_price.items()},
+            "storage_capacity_tons": b.storage_capacity_tons,
+            "storage_tons": round(sum(b.storage.values()), 2),
+            "storage_by_crop": {k: round(v, 2) for k, v in b.storage.items() if v > 1e-6},
+            "flexibility": round(b.flexibility, 2),
+            "cash": round(b.cash, 2),
+            "insolvent_months": b.insolvent_months,
+            "cash_ema": round(b.cash_ema, 2) if b.cash_ema is not None else None,
+        }
+
+    @staticmethod
+    def _exporter_dict(e) -> dict:
+        return {
+            "id": e.id, "type": "exporter", "name": e.name,
+            "lat": e.lat, "lon": e.lon, "region_id": e.region_id,
+            "destination_country": e.destination_country,
+            "handled_crop_ids": e.handled_crop_ids,
+            "monthly_capacity_tons": e.monthly_capacity_tons,
+            # Margin-flexed volume target this month (vs the contract capacity above
+            # → the price-responsive export-volume response). Empty before step 1.
+            "ship_target": {k: round(v, 2) for k, v in e._ship_target.items()},
+            "volume_elasticity": e.volume_elasticity,
+            "reference_margin": e.reference_margin,
+            "storage_tons": round(sum(e.storage.values()), 2),
+            "shipped_total": {k: round(v, 2) for k, v in e.shipped_total.items()},
+            "flexibility": round(e.flexibility, 2),
+            "cash": round(e.cash, 2),
+        }
+
     def agents(self) -> list[dict]:
         w = self._require()
-        out: list[dict] = []
-        for f in w.farmers:
-            out.append({
-                "id": f.id, "type": "farmer", "name": f.name,
-                "lat": f.lat, "lon": f.lon, "region_id": f.region_id,
-                "climate_zone": f.climate_zone.value,
-                "total_area_ha": f.total_area_ha,
-                "storage_capacity_tons": f.storage_capacity_tons,
-                "storage_tons": round(sum(f.storage.values()), 2),
-                "storage_by_crop": {k: round(v, 2) for k, v in f.storage.items() if v > 1e-6},
-                "planted_area": {str(idx): dict(alloc) for idx, alloc in f.planted_area.items()},
-                "allowed_crop_ids": f.allowed_crop_ids,
-                "expected_price": {k: round(v, 2) for k, v in f.expected_price.items()},
-                "cash": round(f.cash, 2),
-                "insolvent_months": f.insolvent_months,
-                "cash_ema": round(f.cash_ema, 2) if f.cash_ema is not None else None,
-            })
-        for b in w.buyers:
-            out.append({
-                "id": b.id, "type": "buyer", "name": b.name,
-                "lat": b.lat, "lon": b.lon, "region_id": b.region_id,
-                "buyer_type": b.buyer_type.value,
-                "monthly_consumption": b.monthly_consumption,
-                "storage_capacity_tons": b.storage_capacity_tons,
-                "storage_tons": round(sum(b.storage.values()), 2),
-                "storage_by_crop": {k: round(v, 2) for k, v in b.storage.items() if v > 1e-6},
-                "flexibility": round(b.flexibility, 2),
-                "cash": round(b.cash, 2),
-                "insolvent_months": b.insolvent_months,
-                "cash_ema": round(b.cash_ema, 2) if b.cash_ema is not None else None,
-            })
-        for e in w.exporters:
-            out.append({
-                "id": e.id, "type": "exporter", "name": e.name,
-                "lat": e.lat, "lon": e.lon, "region_id": e.region_id,
-                "destination_country": e.destination_country,
-                "handled_crop_ids": e.handled_crop_ids,
-                "monthly_capacity_tons": e.monthly_capacity_tons,
-                "storage_tons": round(sum(e.storage.values()), 2),
-                "shipped_total": {k: round(v, 2) for k, v in e.shipped_total.items()},
-                "flexibility": round(e.flexibility, 2),
-                "cash": round(e.cash, 2),
-            })
-        return out
+        return (
+            [self._farmer_dict(f) for f in w.farmers]
+            + [self._buyer_dict(b) for b in w.buyers]
+            + [self._exporter_dict(e) for e in w.exporters]
+        )
+
+    # ------------------------------------------------------------------ live agent creation
+    def add_agent(self, payload) -> dict:
+        """Add one agent to the running world mid-scenario and return its
+        serialised dict. Raises ValueError on a bad/duplicate spec (the route
+        maps that to HTTP 400)."""
+        import random
+
+        from app.simulation.scenario import (
+            _buyer_from_dict,
+            _exporter_from_dict,
+            _farmer_from_dict,
+        )
+
+        w = self._require()
+        kind = payload.kind
+        spec = getattr(payload, kind, None)
+        if spec is None:
+            raise ValueError(f"missing '{kind}' block for kind='{kind}'")
+        d = spec.model_dump(exclude_none=True)
+
+        if not d.get("id"):
+            raise ValueError("agent id is required")
+        if w.find_agent(d["id"]) is not None:
+            raise ValueError(f"agent id '{d['id']}' already exists")
+        try:
+            w.regions.get(d["region_id"])
+        except KeyError as exc:
+            raise ValueError(f"unknown region_id '{d['region_id']}'") from exc
+
+        if kind == "farmer":
+            agent = _farmer_from_dict(d, w.regions, random.Random())
+            w.farmers.append(agent)
+            w.register_agent(agent)
+            return self._farmer_dict(agent)
+        if kind == "buyer":
+            agent = _buyer_from_dict(d, w.regions)
+            w.buyers.append(agent)
+            w.register_agent(agent)
+            return self._buyer_dict(agent)
+        agent = _exporter_from_dict(d, w.regions)
+        w.exporters.append(agent)
+        w.register_agent(agent)
+        return self._exporter_dict(agent)
 
     def history(self) -> list[dict]:
         return list(self._require().step_log)
@@ -261,6 +345,27 @@ class SimulationSession:
             }
             for rec in w.export_history
         ]
+
+    # ------------------------------------------------------------------ stored-run browsing (DB-backed, no live world needed)
+    @staticmethod
+    def list_runs() -> list[dict]:
+        """Catalogue of every persisted run (newest first) for the run-picker."""
+        return db.list_runs()
+
+    @staticmethod
+    def load_run(run_id: int) -> dict:
+        """Full reload of a stored run (config + monthly history + latest
+        cumulative state/agents/exports/market). Raises KeyError if unknown."""
+        run = db.get_run(run_id)
+        if run is None:
+            raise KeyError(f"run {run_id} not found")
+        return run
+
+    @staticmethod
+    def delete_run(run_id: int) -> None:
+        """Remove a stored run and all its rows. Raises KeyError if unknown."""
+        if not db.delete_run(run_id):
+            raise KeyError(f"run {run_id} not found")
 
 
 session = SimulationSession()

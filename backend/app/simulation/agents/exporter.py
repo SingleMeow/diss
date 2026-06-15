@@ -40,9 +40,23 @@ class Exporter:
     #   φ = 0  → never pay above the netback target; wait otherwise
     flexibility: float = 0.5
 
+    # --- Price-responsive export volume ---
+    # The monthly contract is a *baseline*; the volume actually pursued flexes
+    # with the export margin (netback vs the domestic price the grain must be
+    # sourced at) — see `request_purchases`. This is the quantity channel that
+    # transmits world-market conditions (price, FX, duty) into domestic prices.
+    # Parameters set by scenario from agent_parameters.json:exporter_defaults.
+    volume_elasticity: float = 0.0      # 0 = fixed contract (old binary-gate behaviour)
+    reference_margin: float = 0.2       # the "normal" margin ratio the base contract is sized for
+    min_volume_factor: float = 0.4      # floor on volume as a fraction of the base contract
+    max_volume_factor: float = 1.8      # cap on volume as a fraction of the base contract
+
     cash: float = 0.0
     storage: dict[str, float] = field(default_factory=dict)
     shipped_total: dict[str, float] = field(default_factory=dict)
+    # Volume target (tons/crop) computed each month from the margin response and
+    # used by `ship_out` so buying and shipping flex together. Not init state.
+    _ship_target: dict[str, float] = field(default_factory=dict, init=False, repr=False)
 
     def _price_ceiling(self, netback: float) -> float:
         """Maximum domestic price the exporter will pay.
@@ -65,27 +79,48 @@ class Exporter:
         """
         return netback * max(0.0, min(1.0, self.flexibility))
 
+    def _volume_factor(self, netback: float, domestic_ref: float | None) -> float:
+        """Margin-driven multiplier on the base contract volume. The export
+        margin ratio is `(netback − domestic_ref) / netback`; volume responds
+        linearly to its deviation from `reference_margin`:
+
+            factor = clamp(1 + volume_elasticity·(margin_ratio − reference_margin),
+                           min_volume_factor, max_volume_factor)
+
+        A wide margin (high world price / weak rouble / cheap domestic grain)
+        lifts the volume above the contract; a thin one cuts it. Returns 1.0 (the
+        fixed-contract baseline) when elasticity is off or no domestic price
+        reference exists yet."""
+        if self.volume_elasticity <= 0 or not domestic_ref or netback <= 0:
+            return 1.0
+        margin_ratio = (netback - domestic_ref) / netback
+        factor = 1.0 + self.volume_elasticity * (margin_ratio - self.reference_margin)
+        return max(self.min_volume_factor, min(self.max_volume_factor, factor))
+
     def request_purchases(self, world_prices: dict[str, float],
                            export_duty_rate: dict[str, float],
-                           export_fee_per_ton: dict[str, float] | None = None) -> list[DemandRequest]:
-        """Go shopping nationwide to fill this month's fixed export contract.
+                           export_fee_per_ton: dict[str, float] | None = None,
+                           domestic_prices: dict[str, float] | None = None) -> list[DemandRequest]:
+        """Go shopping nationwide to fill this month's export contract.
 
-        The exporter's search ceiling is the FOB netback (world price net of
-        the percentage export duty *and* the per-ton export fee the state
-        charges at shipment) scaled by `flexibility` (minimum margin
-        requirement) — so the exporter never bids above what it can recoup
-        from export sales. `search_market` ranks every seller by delivered
-        cost (ask + transport) and fills from cheapest first, naturally
-        filtering out distant sources whose transport cost eats into the
-        margin.
+        The contract volume is a *baseline*: the volume actually pursued flexes
+        with the export margin (see `_volume_factor`), so a profitable world
+        market pulls more grain out of the country and a squeezed one ships
+        less — the price-responsive export demand that transmits global
+        conditions into domestic prices through quantities.
+
+        The per-trade search ceiling is still the FOB netback (world price net
+        of the percentage export duty *and* the per-ton export fee) scaled by
+        `flexibility` (minimum margin requirement) — so the exporter never bids
+        above what it can recoup. `search_market` ranks every seller by
+        delivered cost (ask + transport) and fills from cheapest first.
         """
         export_fee_per_ton = export_fee_per_ton or {}
+        domestic_prices = domestic_prices or {}
         requests: list[DemandRequest] = []
         for crop_id in self.handled_crop_ids:
-            capacity = self.monthly_capacity_tons.get(crop_id, 0.0)
-            current_stock = self.storage.get(crop_id, 0.0)
-            quantity = max(min(capacity, self.storage_capacity_tons) - current_stock, 0.0)
-            if quantity <= 1e-6:
+            base_capacity = self.monthly_capacity_tons.get(crop_id, 0.0)
+            if base_capacity <= 0:
                 continue
 
             world_price = world_prices.get(crop_id)
@@ -95,6 +130,17 @@ class Exporter:
             fee = export_fee_per_ton.get(crop_id, 0.0)
             netback = world_price * (1.0 - duty) - fee
             if netback <= 0:
+                continue
+
+            # Flex the contract by the margin, then cap by storage. This target
+            # drives both how much to buy now and how much `ship_out` exports.
+            target = base_capacity * self._volume_factor(netback, domestic_prices.get(crop_id))
+            target = min(target, self.storage_capacity_tons)
+            self._ship_target[crop_id] = target
+
+            current_stock = self.storage.get(crop_id, 0.0)
+            quantity = max(target - current_stock, 0.0)
+            if quantity <= 1e-6:
                 continue
 
             ceiling = self._price_ceiling(netback)
@@ -109,11 +155,15 @@ class Exporter:
         return requests
 
     def ship_out(self) -> dict[str, float]:
-        """Export everything currently held, up to monthly capacity. Returns
-        the shipped tonnage per crop (used for trade-balance reporting)."""
+        """Export everything currently held, up to this month's volume target.
+        Returns the shipped tonnage per crop (used for trade-balance reporting).
+
+        The cap is the margin-flexed `_ship_target` set in `request_purchases`
+        (falling back to the base contract for a crop not requested this month),
+        so buying and shipping move together when the export margin shifts."""
         shipped: dict[str, float] = {}
         for crop_id, qty in list(self.storage.items()):
-            capacity = self.monthly_capacity_tons.get(crop_id, qty)
+            capacity = self._ship_target.get(crop_id, self.monthly_capacity_tons.get(crop_id, qty))
             amount = min(qty, capacity)
             if amount <= 1e-9:
                 continue

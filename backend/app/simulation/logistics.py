@@ -23,7 +23,7 @@ class TransportMode(str, Enum):
 
 @dataclass(frozen=True)
 class LogisticsConfig:
-    road_cost_per_ton_km: float = 6       # RUB / (ton * km)
+    road_cost_per_ton_km: float = 4.5      # RUB / (ton * km)
     rail_cost_per_ton_km: float = 1.8       # RUB / (ton * km)
     elevator_handling_fee_per_ton: float = 350.0  # RUB / ton, charged at each elevator transshipment
     rail_min_distance_km: float = 250.0     # below this, rail is not offered (no siding/uneconomical)

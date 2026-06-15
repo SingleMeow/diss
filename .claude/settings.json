@@ -53,10 +53,32 @@
       "Bash(.venv/Scripts/python.exe _merge_borders.py)",
       "Bash(xargs wc -l)",
       "Bash(backend/.venv/Scripts/python.exe -m pytest backend/ -q --co)",
-      "Bash(backend/.venv/Scripts/python.exe --version)"
+      "Bash(backend/.venv/Scripts/python.exe --version)",
+      "Bash(.venv/Scripts/python.exe -c \"import docx; print\\('python-docx', docx.__version__\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"import matplotlib; print\\('matplotlib', matplotlib.__version__\\)\")",
+      "Bash(.venv/Scripts/python.exe -m pip install python-docx matplotlib)",
+      "Bash(.venv/Scripts/python.exe make_figures.py)",
+      "Bash(.venv/Scripts/python.exe make_docx.py)",
+      "Bash(.venv/Scripts/python.exe build_final.py)",
+      "Bash(.venv/Scripts/python.exe -c *)",
+      "Bash(.venv/Scripts/python.exe _diag_run.py)",
+      "Bash(.venv/Scripts/python.exe _diag_run2.py)",
+      "Bash(.venv/Scripts/python.exe _diag_run3.py)",
+      "Bash(.venv/Scripts/python.exe _diag_run4.py)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(.venv/Scripts/python.exe _diag_verify.py)",
+      "Bash(.venv/Scripts/python.exe _diag_imb.py)",
+      "Bash(.venv/Scripts/python.exe _diag_final.py)",
+      "Bash(.venv/Scripts/python.exe _diag_root.py)",
+      "Bash(rm -f _diag_verify.py _diag_imb.py _diag_final.py _diag_root.py)",
+      "Bash(ls _diag_*.py)",
+      "Bash(.venv/Scripts/python.exe _calib.py)",
+      "Bash(.venv/Scripts/python.exe _eval.py)",
+      "Bash(.venv/Scripts/python.exe _proto.py)"
     ],
     "additionalDirectories": [
-      "c:\\c\\Users\\Владимир\\Desktop\\diss\\backend"
+      "c:\\c\\Users\\Владимир\\Desktop\\diss\\backend",
+      "c:\\Users\\Владимир\\.claude\\projects\\c--Users----------Desktop-diss\\memory"
     ]
   }
 }

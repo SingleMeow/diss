@@ -110,15 +110,15 @@
   "farmer_behavior": {
     "comment": "Algorithm constants governing farmer decision logic",
     "demand_price_premium": 0.03,
-    "comment_demand_premium": "Max fractional uplift applied to clearing price when buyer demand exceeds supply (fill_rate=0 → price * (1 + premium)). Provides the upward price signal that balances the downward storage-discount pressure and restores cobweb oscillation.",
+    "comment_demand_premium": "Strength of the TWO-SIDED supply/demand-pressure adjustment to the clearing price: price is scaled by 1 + premium * (imbalance - baseline), where imbalance = (demand - supply)/max(demand, supply) in [-1, 1] (national tonnage requested vs offered, per crop) and baseline is its smoothed EMA (see demand_pressure_smoothing). Working off the DEVIATION from the baseline is essential: the raw imbalance is structurally biased positive (farmers withhold stock, so requested demand persistently exceeds offered supply even with grain in storage) and seasonally lumpy, so scaling price by the raw level both distorts it and amplifies noise. The baseline absorbs that, leaving only transient tightness (positive deviation -> price up) and glut (negative -> price down). This is the channel by which QUANTITY moves price, so price-elastic buyer demand and margin-flexed exporter volume feed back into the price and damp spikes. The steady-state upward signal farmers need now comes from surplus_bargaining_power, not this. Was 0.03 (a one-sided fill-rate uplift that acted as a near-constant level shift).",
+    "demand_pressure_smoothing": 0.1,
+    "comment_demand_smoothing": "EMA alpha for the per-crop supply/demand imbalance BASELINE the price premium deviates from (~0.1 = half-life ~7 months). Lower = the baseline tracks more slowly, so more of a sustained imbalance counts as 'pressure'; higher = only sharp month-to-month swings move the price. Set so the persistent structural bias and seasonal harvest pattern are absorbed into the baseline while genuine demand/supply spikes still register.",
     "surplus_bargaining_power": 0.35,
     "comment_surplus_bargaining": "Seller's share of the buyer surplus in the search market's surplus-split pricing. Each trade executes at ask + this * max(0, (buyer_valuation - transport) - ask), so the demand side lifts the price toward (but never above) the buyer's willingness-to-pay even without scarcity. 0 = buyer pays the seller's ask (old behaviour); 1 = buyer pays its full valuation. NOTE: empirically the dominant driver of within-year price oscillation (each trade is repriced toward the matched buyer's valuation, and monthly buyer/seller re-pairing injects noise), so lowered from 0.5 to 0.35 to damp it.",
     "cash_ema_alpha": 0.12,
     "comment_ema": "EMA smoothing for monthly cash-flow profitability signal (half-life ~8 months)",
     "sale_expectation_smoothing": 0.5,
     "comment_sale_expectation": "Adaptation α for the TRADING (reservation) price belief that prices monthly sale offers, kept SEPARATE from price_adaptation_speed (the PLANTING belief) so the two timescales tune independently. Kept responsive on purpose: a laggy ask worsens within-year oscillation. The dominant within-year driver is surplus_bargaining_power, not this.",
-    "crop_rotation_group_weight": 0.5,
-    "comment_rotation": "(legacy) Fraction of sibling-group area blocked by the old rotation constraint; superseded by per-crop max_area_share in crops.json",
     "acreage_inertia": 0.5,
     "comment_acreage_inertia": "Nerlovian partial adjustment on ACREAGE: a farm's new sowing mix = inertia*last_year + (1-inertia)*margin_target. Captures sunk equipment, agronomic familiarity and contracts that make last year's mix sticky. 0 = jump to the margin-optimal mix each year (volatile); ~0.5-0.7 = realistic gradual reallocation. Equilibrium mix is set by margins within each crop's max_area_share cap.",
     "storage_fill_pressure_multiplier": 0.3,
@@ -151,21 +151,26 @@
     "target_inventory_months": 2.0,
     "comment_inventory": "Desired raw-material cover in months of consumption; buyers purchase toward this level (capped by storage capacity) and consume one month's worth, so they carry a buffer instead of running at zero stock"
   },
-  "buyer_demand_contraction": {
+  "buyer_demand_elasticity": {
     "enabled": true,
-    "comment": "When enabled, buyers reduce consumption if they pay too much for too long and recover when prices fall back",
-    "price_overage_threshold_pct": 20.0,
-    "comment_threshold": "Contraction: price EMA must exceed target by >N% to count as an overpayment month",
-    "consecutive_months_required": 6,
-    "comment_months": "Contraction: triggers after N consecutive overpayment months",
-    "consumption_reduction_rate": 0.15,
-    "comment_reduction": "Contraction: reduce monthly_consumption by this fraction per trigger",
-    "expansion_undershoot_threshold_pct": 5.0,
-    "comment_expansion_threshold": "Expansion: price EMA must be at least N% BELOW target to count as an underpayment month",
-    "expansion_consecutive_months_required": 3,
-    "comment_expansion_months": "Expansion: triggers after N consecutive underpayment months",
-    "expansion_recovery_rate": 0.1,
-    "comment_expansion_recovery": "Expansion: recover this fraction of the gap to baseline consumption per trigger (never exceeds original baseline)"
+    "comment": "Continuous price-elastic domestic demand. Each month a buyer rescales its processing throughput from baseline by a constant-elasticity response to the (EMA-smoothed) price it pays relative to its target price: consumption = baseline * (price_ema / target)^(-elasticity). Replaces the old step-function contraction/expansion with a single, principled, two-sided demand curve. Per-buyer-type elasticity lives in buyer_profiles.demand_elasticity (staples inelastic, feed/traders more elastic). The price-paid EMA reuses buyer_behavior.actual_cost_ema_alpha.",
+    "default_elasticity": 0.3,
+    "comment_default": "Fallback elasticity for hand-placed buyers without a profile",
+    "min_demand_factor": 0.3,
+    "comment_min": "Floor on consumption as a fraction of baseline — demand never collapses to zero even at very high prices",
+    "max_demand_factor": 1.5,
+    "comment_max": "Cap on consumption as a fraction of baseline — a plant cannot process more than its capacity however cheap the input"
+  },
+  "buyer_strategic_inventory": {
+    "enabled": true,
+    "comment": "Forward-looking (mean-reversion) inventory management. A buyer holds a smoothed price anchor (adaptive expectation it expects price to revert toward); when the current price is BELOW the anchor it builds extra raw-material cover (buy the dip), when ABOVE it draws cover down (avoid buying expensive). This intertemporal arbitrage smooths prices — traders especially become stabilising speculators. cover_months_effective = target_inventory_months * clamp(1 + sensitivity*(anchor/current - 1), floor, ceil).",
+    "sensitivity": 1.5,
+    "comment_sensitivity": "How strongly desired inventory cover responds to the anchor/current gap",
+    "anchor_adaptation_speed": 0.25,
+    "comment_anchor": "Nerlove alpha for the smoothed price anchor (0.25 ~ half-life 2-3 months); slower = stronger mean-reversion belief",
+    "cover_multiplier_floor": 0.5,
+    "cover_multiplier_ceil": 2.0,
+    "comment_clamp": "Bounds on the cover multiplier so the buffer stays between half and double its baseline cover"
   },
   "buyer_profiles": {
     "comment": "Crops here are MARKET GOODS (see crops.json:market_good) — buyers trade fungible commodities (wheat), not agronomic varieties (winter/spring wheat). Mills/processors derive their input target price from output_prices net of processing_margin.",
@@ -184,6 +189,8 @@
         0.85
       ],
       "processing_margin": 0.28,
+      "demand_elasticity": 0.2,
+      "comment_elasticity": "Flour for bread is a staple — milling throughput is price-inelastic",
       "output_prices": {
         "wheat": 20000,
         "rye": 17000,
@@ -210,6 +217,8 @@
         0.75
       ],
       "processing_margin": 0.22,
+      "demand_elasticity": 0.5,
+      "comment_elasticity": "Feed demand responds to price (herd sizes, ration tweaks) more than milling does",
       "output_prices": {
         "corn": 28000,
         "barley": 24000,
@@ -241,6 +250,8 @@
         0.8
       ],
       "processing_margin": 0.32,
+      "demand_elasticity": 0.35,
+      "comment_elasticity": "Processed-food demand is moderately price-elastic",
       "output_prices": {
         "sunflower": 70000,
         "soybean": 60000,
@@ -279,6 +290,8 @@
         0.4
       ],
       "processing_margin": 0.0,
+      "demand_elasticity": 0.8,
+      "comment_elasticity": "Traders are arbitrageurs — their throughput is the most price-elastic (scale up when grain is cheap relative to resale, throttle when dear)",
       "output_prices": {}
     }
   },
@@ -295,7 +308,15 @@
   "exporter_defaults": {
     "flexibility": 0.95,
     "initial_cash_rubles": 50000000,
-    "storage_capacity_tons": 1000000
+    "storage_capacity_tons": 1000000,
+    "volume_elasticity": 1.5,
+    "comment_volume_elasticity": "Price-responsive export volume (the main quantity channel transmitting world-market conditions into domestic prices). Monthly target volume = base_contract * clamp(1 + volume_elasticity*(margin_ratio - reference_margin), min_volume_factor, max_volume_factor), where margin_ratio = (netback - domestic_reference_price)/netback. A fat export margin (high world price / weak rouble / cheap domestic grain) pulls more grain out of the country and bids domestic prices up; a thin margin throttles exports. Replaces the old binary buy/no-buy gate (the netback price ceiling still applies per trade).",
+    "reference_margin": 0.2,
+    "comment_reference_margin": "The 'normal' export margin ratio the base contract volume is sized for; volume responds to deviations of the realised margin from this. Approximate: domestic_reference_price is the national farm-gate average, so it understates the exporter's true delivered cost — a tuning, not an accounting, parameter.",
+    "min_volume_factor": 0.4,
+    "comment_min_volume": "Floor on monthly export volume as a fraction of the base contract (long-term contracts/commitments keep some flow even at thin margins)",
+    "max_volume_factor": 1.8,
+    "comment_max_volume": "Cap on monthly export volume as a fraction of the base contract (port/logistics throughput limit on surge shipping)"
   },
   "government_defaults": {
     "intervention_volume_share": 0.15,

@@ -67,7 +67,11 @@ export interface FarmerAgent extends AgentBase {
 export interface BuyerAgent extends AgentBase {
   type: "buyer";
   buyer_type: string;
-  monthly_consumption: Record<string, number>;
+  monthly_consumption: Record<string, number>;          // current (price-elastic) throughput
+  monthly_consumption_baseline: Record<string, number>; // pre-shock baseline throughput
+  demand_elasticity: number;                             // price-elasticity of demand
+  target_inventory_months: number;
+  expected_price: Record<string, number>;                // smoothed mean-reversion price anchor
   storage_capacity_tons: number;
   storage_tons: number;
   storage_by_crop: Record<string, number>;
@@ -80,7 +84,10 @@ export interface ExporterAgent extends AgentBase {
   type: "exporter";
   destination_country: string;
   handled_crop_ids: string[];
-  monthly_capacity_tons: Record<string, number>;
+  monthly_capacity_tons: Record<string, number>; // base contract volume per crop
+  ship_target: Record<string, number>;           // current margin-flexed volume target
+  volume_elasticity: number;
+  reference_margin: number;
   storage_tons: number;
   shipped_total: Record<string, number>;
   flexibility: number;
@@ -143,11 +150,48 @@ export interface StepRecord {
   total_farmer_storage: number;
   total_buyer_storage: number;
   total_exporter_storage: number;
+  total_government_reserves: number;
+  total_grain_in_system: number;
+  // Per-month grain flows (mass balance): ΔTotal grain ==
+  // harvested − consumed − spoiled − exported − dumped.
+  harvested_tons: number;
+  consumed_tons: number;
+  spoiled_tons: number;
+  exported_tons: number;
+  dumped_tons: number;
 }
 
 export interface StepResponse {
   steps: StepRecord[];
   state: SimulationState;
+}
+
+// ----------------------------------------------------------- stored runs (DB-backed history)
+
+/** One row of GET /simulation/runs — the run catalogue / picker. */
+export interface RunSummary {
+  id: number;
+  created_at: string;
+  config: Partial<ScenarioConfigIn>;
+  step_count: number;
+  last_year: number | null;
+  last_month: number | null;
+  updated_at: string | null;
+}
+
+/** GET /simulation/runs/{id} — a fully reloaded run, in the same shapes the
+ *  live endpoints return, so a past run can be rendered read-only. */
+export interface LoadedRun {
+  run_id: number;
+  created_at: string;
+  config: Partial<ScenarioConfigIn>;
+  step_index: number;
+  updated_at: string | null;
+  history: StepRecord[];
+  state: SimulationState | null;
+  agents: Agent[];
+  exports: ExportRecord[];
+  market: MarketHistory;
 }
 
 export interface MarketSeries {
@@ -240,6 +284,49 @@ export interface InterveneRequest {
   world_prices?: Record<string, number>;
   export_volume_factors?: Record<string, number>;
   weather?: WeatherShockPatch;
+}
+
+// ----------------------------------------------------------- add agent (live)
+
+export interface CustomFarmerIn {
+  id: string;
+  name?: string;
+  region_id: string;
+  total_area_ha: number;
+  storage_capacity_tons?: number;
+  allowed_crop_ids: string[];
+  cash?: number;
+}
+
+export interface CustomBuyerIn {
+  id: string;
+  name?: string;
+  region_id: string;
+  buyer_type: string;
+  monthly_consumption: Record<string, number>;
+  storage_capacity_tons?: number;
+  processing_margin?: number;
+  flexibility?: number;
+  demand_elasticity?: number;
+  cash?: number;
+}
+
+export interface CustomExporterIn {
+  id: string;
+  name?: string;
+  region_id: string;
+  destination_country?: string;
+  handled_crop_ids: string[];
+  monthly_capacity_tons: Record<string, number>;
+  flexibility?: number;
+  cash?: number;
+}
+
+export interface AddAgentRequest {
+  kind: "farmer" | "buyer" | "exporter";
+  farmer?: CustomFarmerIn;
+  buyer?: CustomBuyerIn;
+  exporter?: CustomExporterIn;
 }
 
 // ---------------------------------------------------------------------- requests

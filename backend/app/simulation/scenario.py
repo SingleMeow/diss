@@ -46,7 +46,8 @@ _fas = AGENT_PARAMETERS["farmer_area_and_storage"]
 _fb  = AGENT_PARAMETERS["farmer_behavior"]
 _bd  = AGENT_PARAMETERS["buyer_defaults"]
 _bb  = AGENT_PARAMETERS["buyer_behavior"]
-_bdc = AGENT_PARAMETERS["buyer_demand_contraction"]
+_bde = AGENT_PARAMETERS["buyer_demand_elasticity"]
+_bsi = AGENT_PARAMETERS["buyer_strategic_inventory"]
 _bic = AGENT_PARAMETERS["buyer_initial_cash"]
 _ed  = AGENT_PARAMETERS["exporter_defaults"]
 _gd  = AGENT_PARAMETERS["government_defaults"]
@@ -65,37 +66,25 @@ def _zone_cfg(zone_value: str) -> dict:
 
 # Convert JSON profiles to the old BUYER_PROFILES format for backward compatibility
 def _build_buyer_profiles() -> dict[BuyerType, dict]:
-    profiles = {}
     params = AGENT_PARAMETERS["buyer_profiles"]
-    profiles[BuyerType.FLOUR_MILL] = {
-        "crops": params["flour_mill"]["crops"],
-        "scale": tuple(params["flour_mill"]["monthly_consumption_range_tons"]),
-        "flexibility": tuple(params["flour_mill"]["flexibility_range"]),
-        "margin": params["flour_mill"]["processing_margin"],
-        "output_price": params["flour_mill"]["output_prices"],
+
+    def _profile(key: str) -> dict:
+        p = params[key]
+        return {
+            "crops": p["crops"],
+            "scale": tuple(p["monthly_consumption_range_tons"]),
+            "flexibility": tuple(p["flexibility_range"]),
+            "margin": p["processing_margin"],
+            "output_price": p["output_prices"],
+            "demand_elasticity": p.get("demand_elasticity", _bde["default_elasticity"]),
+        }
+
+    return {
+        BuyerType.FLOUR_MILL: _profile("flour_mill"),
+        BuyerType.FEED_PRODUCER: _profile("feed_producer"),
+        BuyerType.FOOD_PROCESSOR: _profile("food_processor"),
+        BuyerType.TRADER: _profile("trader"),
     }
-    profiles[BuyerType.FEED_PRODUCER] = {
-        "crops": params["feed_producer"]["crops"],
-        "scale": tuple(params["feed_producer"]["monthly_consumption_range_tons"]),
-        "flexibility": tuple(params["feed_producer"]["flexibility_range"]),
-        "margin": params["feed_producer"]["processing_margin"],
-        "output_price": params["feed_producer"]["output_prices"],
-    }
-    profiles[BuyerType.FOOD_PROCESSOR] = {
-        "crops": params["food_processor"]["crops"],
-        "scale": tuple(params["food_processor"]["monthly_consumption_range_tons"]),
-        "flexibility": tuple(params["food_processor"]["flexibility_range"]),
-        "margin": params["food_processor"]["processing_margin"],
-        "output_price": params["food_processor"]["output_prices"],
-    }
-    profiles[BuyerType.TRADER] = {
-        "crops": params["trader"]["crops"],
-        "scale": tuple(params["trader"]["monthly_consumption_range_tons"]),
-        "flexibility": tuple(params["trader"]["flexibility_range"]),
-        "margin": params["trader"]["processing_margin"],
-        "output_price": params["trader"]["output_prices"],
-    }
-    return profiles
 
 BUYER_PROFILES = _build_buyer_profiles()
 
@@ -240,6 +229,7 @@ def build_world(config: ScenarioConfig | None = None) -> World:
         demand_center_lat=_wc["demand_center_lat"],
         demand_center_lon=_wc["demand_center_lon"],
         demand_price_premium=_fb["demand_price_premium"],
+        demand_pressure_smoothing=_fb["demand_pressure_smoothing"],
         surplus_bargaining_power=_fb["surplus_bargaining_power"],
         weather_national_weight=_wth["national_weight"],
         weather_regional_weight=_wth["regional_weight"],
@@ -292,7 +282,6 @@ def _farmer_behavior_kwargs() -> dict:
     return {
         "cash_ema_alpha":                  _fb["cash_ema_alpha"],
         "sale_expectation_smoothing":      _fb["sale_expectation_smoothing"],
-        "crop_rotation_group_weight":      _fb["crop_rotation_group_weight"],
         "acreage_inertia":                 _fb["acreage_inertia"],
         "storage_fill_pressure_multiplier": _fb["storage_fill_pressure_multiplier"],
         "storage_fill_threshold":          _fb["storage_fill_threshold"],
@@ -461,6 +450,17 @@ def _buyer_behavior_kwargs() -> dict:
         "actual_cost_ema_alpha":   _bb["actual_cost_ema_alpha"],
         "target_inventory_months": _bb["target_inventory_months"],
         "cash_ema_alpha":          _fb["cash_ema_alpha"],
+        # Price-elastic demand (type-independent bounds; per-type elasticity is
+        # passed separately from the buyer profile).
+        "price_elastic_demand":    _bde["enabled"],
+        "min_demand_factor":       _bde["min_demand_factor"],
+        "max_demand_factor":       _bde["max_demand_factor"],
+        # Strategic / mean-reversion inventory.
+        "strategic_inventory_enabled":   _bsi["enabled"],
+        "price_anchor_adaptation_speed": _bsi["anchor_adaptation_speed"],
+        "speculation_sensitivity":       _bsi["sensitivity"],
+        "cover_multiplier_floor":        _bsi["cover_multiplier_floor"],
+        "cover_multiplier_ceil":         _bsi["cover_multiplier_ceil"],
     }
 
 
@@ -502,13 +502,7 @@ def _spawn_single_buyer(region: Region, crops: CropRegistry, world: "World", rng
         flexibility=rng.uniform(flex_lo, flex_hi),
         cash=rng.uniform(*_bic["range_rubles"]),
         max_debt=world.buyer_max_debt,
-        demand_contraction_enabled=_bdc["enabled"],
-        demand_contraction_threshold_pct=_bdc["price_overage_threshold_pct"],
-        demand_contraction_months=_bdc["consecutive_months_required"],
-        demand_contraction_rate=_bdc["consumption_reduction_rate"],
-        demand_expansion_undershoot_pct=_bdc["expansion_undershoot_threshold_pct"],
-        demand_expansion_months=_bdc["expansion_consecutive_months_required"],
-        demand_expansion_recovery_rate=_bdc["expansion_recovery_rate"],
+        demand_elasticity=profile["demand_elasticity"],
         **_buyer_behavior_kwargs(),
     )
 
@@ -570,10 +564,7 @@ def _buyer_from_dict(d: dict, regions: RegionRegistry) -> Buyer:
         flexibility=d.get("flexibility", _bd["flexibility"]),
         max_debt=d.get("max_debt", _bd["max_debt"]),
         cash=d.get("cash", _sd["buyer_fallback_cash_rubles"]),
-        demand_contraction_enabled=_bdc["enabled"],
-        demand_contraction_threshold_pct=_bdc["price_overage_threshold_pct"],
-        demand_contraction_months=_bdc["consecutive_months_required"],
-        demand_contraction_rate=_bdc["consumption_reduction_rate"],
+        demand_elasticity=d.get("demand_elasticity", _bde["default_elasticity"]),
         **_buyer_behavior_kwargs(),
     )
 
@@ -604,8 +595,19 @@ def _load_exporters(regions: RegionRegistry, crops: CropRegistry,
             flexibility=d.get("flexibility", _ed["flexibility"]),
             storage_capacity_tons=_ed["storage_capacity_tons"],
             cash=_ed["initial_cash_rubles"],
+            **_exporter_volume_kwargs(),
         ))
     return exporters
+
+
+def _exporter_volume_kwargs() -> dict:
+    """Price-responsive export-volume parameters from agent_parameters.json."""
+    return {
+        "volume_elasticity": _ed["volume_elasticity"],
+        "reference_margin":  _ed["reference_margin"],
+        "min_volume_factor": _ed["min_volume_factor"],
+        "max_volume_factor": _ed["max_volume_factor"],
+    }
 
 
 def _exporter_from_dict(d: dict, regions: RegionRegistry) -> Exporter:
@@ -619,4 +621,5 @@ def _exporter_from_dict(d: dict, regions: RegionRegistry) -> Exporter:
         flexibility=d.get("flexibility", _ed["flexibility"]),
         storage_capacity_tons=d.get("storage_capacity_tons", _ed["storage_capacity_tons"]),
         cash=d.get("cash", _ed["initial_cash_rubles"]),
+        **_exporter_volume_kwargs(),
     )

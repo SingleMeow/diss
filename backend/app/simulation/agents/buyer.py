@@ -80,19 +80,30 @@ class Buyer:
     insolvent_months: int = 0
     cash_ema: float | None = None
 
-    # Demand contraction/expansion: track realized costs for endogenous demand adjustment
-    actual_cost_ema: dict[str, float] = field(default_factory=dict)  # crop_id → EMA of price paid
-    months_above_ceiling: dict[str, int] = field(default_factory=dict)  # consecutive months of overpayment
-    months_below_target: dict[str, int] = field(default_factory=dict)   # consecutive months of underpayment
-    demand_contraction_enabled: bool = True
-    # Contraction parameters
-    demand_contraction_threshold_pct: float = 20.0  # trigger when price > target by this %
-    demand_contraction_months: int = 2              # consecutive months before contraction
-    demand_contraction_rate: float = 0.15           # reduce consumption by this fraction
-    # Expansion parameters — set by scenario from agent_parameters.json:buyer_demand_contraction
-    demand_expansion_undershoot_pct: float = 5.0    # price must be this % below target to count
-    demand_expansion_months: int = 3                # consecutive months before expansion triggers
-    demand_expansion_recovery_rate: float = 0.10    # fraction of gap-to-baseline recovered per trigger
+    # --- Price-elastic demand (constant-elasticity, two-sided) ---
+    # Each month the buyer rescales its processing throughput from baseline by a
+    # constant-elasticity response to the (EMA-smoothed) price it pays relative
+    # to its target price — see `update_demand`. Replaces the old step-function
+    # contraction/expansion. Parameters set by scenario from
+    # agent_parameters.json:buyer_demand_elasticity (+ per-type elasticity from
+    # buyer_profiles.demand_elasticity).
+    actual_cost_ema: dict[str, float] = field(default_factory=dict)  # crop_id → EMA of price actually paid (the elasticity's price signal)
+    price_elastic_demand: bool = True
+    demand_elasticity: float = 0.3        # ε in consumption = baseline*(price/target)^(-ε); per-buyer-type
+    min_demand_factor: float = 0.3        # consumption floor as a fraction of baseline
+    max_demand_factor: float = 1.5        # consumption cap as a fraction of baseline (processing capacity limit)
+
+    # --- Strategic / mean-reversion inventory ---
+    # The buyer carries a smoothed price "anchor" it expects price to revert
+    # toward; when the current price sits below the anchor it builds extra cover
+    # (buy the dip), above it draws cover down — intertemporal arbitrage that
+    # smooths prices. See `update_price_expectations` / `request_purchases`.
+    expected_price: dict[str, float] = field(default_factory=dict)  # crop_id → smoothed mean-reversion price anchor
+    strategic_inventory_enabled: bool = True
+    price_anchor_adaptation_speed: float = 0.25   # Nerlove α for the price anchor
+    speculation_sensitivity: float = 1.5          # strength of the cover response to (anchor/current − 1)
+    cover_multiplier_floor: float = 0.5
+    cover_multiplier_ceil: float = 2.0
 
     # Algorithm constants — set by scenario from agent_parameters.json:buyer_behavior
     fallback_target_markup: float = 1.15
@@ -146,15 +157,24 @@ class Buyer:
 
     def _target_price(self, crop_id: str, snapshot: MarketSnapshot) -> float:
         """The price the buyer would *like* to pay for the raw crop, derived
-        from its downstream product price net of margin. Falls back to a
-        multiple of the observed market price when no output price is
-        configured, so traders (who have no "product" of their own) still
-        have a sensible reference to anchor their search ceiling on."""
+        from its downstream product price net of margin.
+
+        A trader has no "product" of its own, so it falls back to a multiple of
+        a *reference* price. That reference is the buyer's **smoothed price
+        anchor** (`expected_price`, the Nerlove mean-reversion belief) rather
+        than the instantaneous market price: anchoring on the spot price would
+        make the elasticity ratio `price/target` ≈ constant (target tracks
+        price 1:1), so the demand response would be inert — exactly the bug that
+        made traders, the most price-elastic buyers, never actually flex. With a
+        slow anchor, a price spike *above* the anchor raises `price/target` and
+        contracts the trader's demand; a dip expands it. Falls back to the spot
+        price only until the anchor is seeded (or when strategic inventory, which
+        maintains the anchor, is disabled)."""
         out_price = self._current_output_price(crop_id, snapshot.month_index)
         if out_price is not None:
             return out_price * (1.0 - self.processing_margin)
         info = snapshot.info(crop_id)
-        reference = info.last_price or info.national_avg_price
+        reference = self.expected_price.get(crop_id) or info.last_price or info.national_avg_price
         return (reference * self.fallback_target_markup) if reference else 0.0
 
     def _price_ceiling(self, target_price: float) -> float | None:
@@ -167,74 +187,76 @@ class Buyer:
             return None
         return target_price / max(1.0 - self.flexibility, 1e-6)
 
-    def check_demand_contraction(self, snapshot: MarketSnapshot) -> None:
-        """Demand contraction and expansion: endogenous adjustment of monthly
-        consumption in response to sustained price pressure in either direction.
+    def update_price_expectations(self, snapshot: MarketSnapshot) -> None:
+        """Maintain a smoothed price *anchor* per crop — the level the buyer
+        expects the market to revert toward — using the same Nerlove adaptive
+        scheme the farmers use: `A_t = A_{t-1} + α·(P_obs − A_{t-1})`.
 
-        Contraction: when the price EMA stays above target by more than
-        `demand_contraction_threshold_pct` for `demand_contraction_months`
-        consecutive months, consumption is reduced by `demand_contraction_rate`.
-
-        Expansion: when the price EMA falls below target by more than
-        `demand_expansion_undershoot_pct` for `demand_expansion_months`
-        consecutive months, consumption recovers by `demand_expansion_recovery_rate`
-        of the remaining gap to the original baseline — so recovery is always
-        partial and can never overshoot the pre-contraction level.
-
-        The two counters are mutually exclusive: a month is either above ceiling,
-        below target, or neutral — at most one counter increments.
-        """
-        if not self.demand_contraction_enabled:
+        Because the anchor lags the market, comparing it to the current price
+        gives a mean-reversion signal: a price spiking above the anchor is
+        "expensive, likely to fall" (destock), one below is "cheap, likely to
+        recover" (build cover). `request_purchases` turns that gap into a
+        strategic inventory adjustment. Seeded from the first observed price."""
+        if not self.strategic_inventory_enabled:
             return
-
-        for crop_id, monthly_need in list(self.monthly_consumption.items()):
-            if monthly_need <= 0:
+        for crop_id in self.monthly_consumption_baseline:
+            info = snapshot.info(crop_id)
+            observed = info.last_price if info.last_price is not None else info.national_avg_price
+            if observed is None or observed <= 0.0:
                 continue
+            prior = self.expected_price.get(crop_id, observed)
+            self.expected_price[crop_id] = prior + self.price_anchor_adaptation_speed * (observed - prior)
 
+    def _cover_multiplier(self, crop_id: str, snapshot: MarketSnapshot) -> float:
+        """Mean-reversion inventory multiplier on the buyer's target cover: >1
+        when the current price is below the smoothed anchor (buy the dip), <1
+        when above it (avoid stocking up on expensive grain). Returns 1.0 when
+        strategic inventory is disabled or there is no usable price signal yet."""
+        if not self.strategic_inventory_enabled:
+            return 1.0
+        anchor = self.expected_price.get(crop_id)
+        info = snapshot.info(crop_id)
+        current = info.last_price if info.last_price is not None else info.national_avg_price
+        if not anchor or not current or current <= 0:
+            return 1.0
+        raw = 1.0 + self.speculation_sensitivity * (anchor / current - 1.0)
+        return max(self.cover_multiplier_floor, min(self.cover_multiplier_ceil, raw))
+
+    def update_demand(self, snapshot: MarketSnapshot) -> None:
+        """Price-elastic demand: rescale this month's processing throughput from
+        baseline by a constant-elasticity response to the price the buyer pays
+        relative to its target price:
+
+            consumption = baseline × (price_ema / target)^(−elasticity)
+
+        clamped to [`min_demand_factor`, `max_demand_factor`]×baseline. This is
+        the continuous, two-sided successor to the old step-function contraction:
+        sustained overpayment shrinks throughput, cheap input expands it (up to
+        capacity), with no counters or ratchets. `price_ema` is an EMA of the
+        price actually observed, so the response is smooth rather than jerky."""
+        if not self.price_elastic_demand:
+            return
+        for crop_id, baseline in self.monthly_consumption_baseline.items():
+            if baseline <= 0:
+                continue
             target_price = self._target_price(crop_id, snapshot)
             if target_price <= 0:
                 continue
-
-            # Update EMA of actual price paid
             info = snapshot.info(crop_id)
-            actual_price = info.last_price or info.national_avg_price
-            if actual_price is None:
+            observed = info.last_price if info.last_price is not None else info.national_avg_price
+            # A remote region's shadow price can floor at 0 (national avg minus
+            # haulage); a non-positive price carries no usable demand signal and
+            # would blow up the negative-exponent power, so skip it.
+            if observed is None or observed <= 0.0:
                 continue
 
-            if crop_id not in self.actual_cost_ema:
-                self.actual_cost_ema[crop_id] = actual_price
-            else:
-                self.actual_cost_ema[crop_id] = (
-                    (1.0 - self.actual_cost_ema_alpha) * self.actual_cost_ema[crop_id] +
-                    self.actual_cost_ema_alpha * actual_price
-                )
-
+            prior = self.actual_cost_ema.get(crop_id, observed)
+            self.actual_cost_ema[crop_id] = (1.0 - self.actual_cost_ema_alpha) * prior + self.actual_cost_ema_alpha * observed
             price_ema = self.actual_cost_ema[crop_id]
-            deviation_pct = (price_ema / target_price - 1.0) * 100
 
-            # --- contraction path ---
-            if deviation_pct > self.demand_contraction_threshold_pct:
-                self.months_above_ceiling[crop_id] = self.months_above_ceiling.get(crop_id, 0) + 1
-                self.months_below_target[crop_id] = 0
-                if self.months_above_ceiling[crop_id] >= self.demand_contraction_months:
-                    self.monthly_consumption[crop_id] *= (1.0 - self.demand_contraction_rate)
-                    self.months_above_ceiling[crop_id] = 0
-
-            # --- expansion path ---
-            elif deviation_pct < -self.demand_expansion_undershoot_pct:
-                self.months_below_target[crop_id] = self.months_below_target.get(crop_id, 0) + 1
-                self.months_above_ceiling[crop_id] = 0
-                if self.months_below_target[crop_id] >= self.demand_expansion_months:
-                    baseline = self.monthly_consumption_baseline.get(crop_id, monthly_need)
-                    gap = baseline - self.monthly_consumption[crop_id]
-                    if gap > 1e-6:
-                        self.monthly_consumption[crop_id] += gap * self.demand_expansion_recovery_rate
-                    self.months_below_target[crop_id] = 0
-
-            # --- neutral: reset both counters ---
-            else:
-                self.months_above_ceiling[crop_id] = 0
-                self.months_below_target[crop_id] = 0
+            factor = (price_ema / target_price) ** (-self.demand_elasticity)
+            factor = max(self.min_demand_factor, min(self.max_demand_factor, factor))
+            self.monthly_consumption[crop_id] = baseline * factor
 
     def request_purchases(self, snapshot: MarketSnapshot) -> list[DemandRequest]:
         """Go shopping: emit one `DemandRequest` per crop for this month's
@@ -256,8 +278,11 @@ class Buyer:
             current_stock = self.storage.get(crop_id, 0.0)
             # Buy toward a desired inventory cover (months of consumption), not
             # just this month's throughput, so the buyer carries a buffer it can
-            # draw down rather than ending every month at zero stock.
-            desired_stock = monthly_need * self.target_inventory_months
+            # draw down rather than ending every month at zero stock. The cover
+            # flexes with the mean-reversion signal: build extra when grain is
+            # cheap relative to the price anchor, draw down when it is dear.
+            effective_cover = self.target_inventory_months * self._cover_multiplier(crop_id, snapshot)
+            desired_stock = monthly_need * effective_cover
             quantity = max(desired_stock - current_stock, 0.0)
             room_left = max(self.storage_capacity_tons - current_stock, 0.0)
             quantity = min(quantity, room_left)

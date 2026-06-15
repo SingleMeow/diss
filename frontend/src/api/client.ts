@@ -1,12 +1,15 @@
 import type {
+  AddAgentRequest,
   Agent,
   BorderPoint,
   Crop,
   ExportRecord,
   InterveneRequest,
   Levers,
+  LoadedRun,
   MarketHistory,
   Region,
+  RunSummary,
   ScenarioConfigIn,
   SimulationState,
   StepRecord,
@@ -46,6 +49,11 @@ export const simulationApi = {
     }),
   state: () => request<SimulationState>("/simulation/state"),
   agents: () => request<Agent[]>("/simulation/agents"),
+  addAgent: (req: AddAgentRequest) =>
+    request<Agent>("/simulation/agents", {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
   history: () => request<StepRecord[]>("/simulation/history"),
   market: () => request<MarketHistory>("/simulation/market"),
   exports: () => request<ExportRecord[]>("/simulation/exports"),
@@ -55,4 +63,9 @@ export const simulationApi = {
       method: "POST",
       body: JSON.stringify(patch),
     }),
+  // Stored-run browsing (persisted history; no active run required).
+  runs: () => request<RunSummary[]>("/simulation/runs"),
+  run: (id: number) => request<LoadedRun>(`/simulation/runs/${id}`),
+  deleteRun: (id: number) =>
+    request<{ deleted: number }>(`/simulation/runs/${id}`, { method: "DELETE" }),
 };

@@ -1,6 +1,17 @@
-fastapi>=0.110
-uvicorn[standard]>=0.29
-pydantic>=2.6
-python-multipart>=0.0.9
-pytest>=8.0
-httpx>=0.27
+# Exact-pinned to the environment the 30-test suite is green on (CPython 3.14).
+# Canonical dependency declaration lives in pyproject.toml; this flat file is
+# the reproducible-install path:  pip install -r requirements.txt
+#
+# Direct deps are pinned exactly for dissertation reproducibility. Transitive
+# packages are resolved by pip from these (regenerate with `pip freeze` after a
+# clean install if a fully-frozen lock of the whole tree is ever needed).
+
+# --- runtime ---
+fastapi==0.136.3
+uvicorn[standard]==0.49.0
+pydantic==2.13.4
+python-multipart==0.0.32
+
+# --- dev / test ---
+pytest==9.0.3
+httpx==0.28.1

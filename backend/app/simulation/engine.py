@@ -67,22 +67,31 @@ class SimulationEngine:
         # Harvest BEFORE planting so a September spring-crop harvest frees the
         # land that month's winter sowing then re-uses (winter and spring crops
         # share the same finite hectares — see Farmer._decide_planting).
-        forced_sales = self._harvest_phase(year, month)
+        # Each phase reports the grain it moved into/out of the modelled economy
+        # so the monthly record carries a full mass balance (see _log_step).
+        forced_sales, harvested_tons = self._harvest_phase(year, month)
         self._planting_phase(year, month)
-        self._spoilage_phase()
+        spoiled_tons = self._spoilage_phase()
         self._update_expectations()
         offers, requests = self._collect_offers_and_requests(forced_sales)
         trades = match_supply_and_demand(offers, requests, w.logistics, w.rng,
                                          bargaining_power=w.surplus_bargaining_power)
-        trade_summary = self._settle(trades, requests)
-        self._return_unsold_offers(offers, trades)
-        self._consumption_and_exports(month)
+        trade_summary = self._settle(trades, requests, offers)
+        dumped_tons = self._return_unsold_offers(offers, trades)
+        consumed_tons, exported_tons = self._consumption_and_exports(month)
         national_prices = w.finalize_national_prices()
-        self._demand_contraction_phase()
+        self._demand_update_phase()
 
         lifecycle = self._lifecycle_phase(year, month)
 
-        record = self._log_step(year, month, trade_summary, national_prices, lifecycle)
+        flows = {
+            "harvested_tons": harvested_tons,
+            "consumed_tons": consumed_tons,
+            "spoiled_tons": spoiled_tons,
+            "exported_tons": exported_tons,
+            "dumped_tons": dumped_tons,
+        }
+        record = self._log_step(year, month, trade_summary, national_prices, lifecycle, flows)
         w.step_log.append(record)
         return record
 
@@ -96,22 +105,41 @@ class SimulationEngine:
                 w.government.pay_subsidies([farmer], slot)
 
     # ------------------------------------------------------------------ phase 2
-    def _harvest_phase(self, year: int, month: int) -> dict[str, dict[str, float]]:
+    def _harvest_phase(self, year: int, month: int) -> tuple[dict[str, dict[str, float]], float]:
+        """Realise due harvests. Returns the per-farmer forced-overflow sales and
+        the total tonnage harvested this month (= the rise in farmer storage plus
+        whatever overflowed capacity and was dumped onto the market as forced)."""
         w = self.world
+        before = self._total_farmer_storage()
         forced: dict[str, dict[str, float]] = {}
+        forced_total = 0.0
         for farmer in w.farmers:
             overflow = farmer.maybe_harvest(year, month, w.crops, w.weather)
             if overflow:
                 forced[farmer.id] = overflow
-        return forced
+                forced_total += sum(overflow.values())
+        harvested = (self._total_farmer_storage() - before) + forced_total
+        return forced, harvested
 
     # ------------------------------------------------------------------ phase 3
-    def _spoilage_phase(self) -> None:
+    def _spoilage_phase(self) -> float:
+        """Apply storage spoilage + (cash-only) fixed/credit charges. Returns the
+        tonnage lost to spoilage — the drop in farmer storage, since the fixed and
+        credit charges touch cash only, not stock."""
         w = self.world
+        before = self._total_farmer_storage()
         for farmer in w.farmers:
             farmer.apply_storage_losses(w.crops)
             farmer.apply_fixed_costs()
             farmer.apply_credit_charges()
+        return before - self._total_farmer_storage()
+
+    @staticmethod
+    def _sum_storage(agents) -> float:
+        return sum(sum(a.storage.values()) for a in agents)
+
+    def _total_farmer_storage(self) -> float:
+        return self._sum_storage(self.world.farmers)
 
     # ------------------------------------------------------------------ phase 4
     def _update_expectations(self) -> None:
@@ -124,6 +152,11 @@ class SimulationEngine:
         for farmer in w.farmers:
             snapshot = w.build_snapshot(farmer.region_id)
             farmer.update_price_expectations(snapshot, w.crops)
+        # Buyers maintain a smoothed mean-reversion price anchor too (drives the
+        # strategic-inventory adjustment in Buyer.request_purchases), updated
+        # here so their belief is current before they decide what to buy.
+        for buyer in w.buyers:
+            buyer.update_price_expectations(w.build_snapshot(buyer.region_id))
 
     # ------------------------------------------------------------------ phase 5
     def _collect_offers_and_requests(
@@ -149,6 +182,9 @@ class SimulationEngine:
         world_prices = w.world_prices_now(month_idx)
         duty_rates = {good: w.government.export_duty_rate(good) for good in goods}
         export_fees = {good: w.government.export_fee_per_ton(good) for good in goods}
+        # Last national farm-gate average per good — the domestic sourcing-cost
+        # reference exporters compare against their netback to flex export volume.
+        domestic_prices = {good: w.last_national_price(good) for good in goods}
 
         for farmer in w.farmers:
             snapshot = w.build_snapshot(farmer.region_id)
@@ -159,10 +195,16 @@ class SimulationEngine:
             requests.extend(buyer.request_purchases(snapshot))
 
         for exporter in w.exporters:
-            requests.extend(exporter.request_purchases(world_prices, duty_rates, export_fees))
+            requests.extend(exporter.request_purchases(world_prices, duty_rates, export_fees, domestic_prices))
 
+        # Only goods with a floor or ceiling configured can ever produce an
+        # intervention, so scan just those — not every region × every good. With
+        # no interventions set (the default) this skips the whole sweep instead
+        # of building and discarding ~(regions × goods) None requests each month.
+        policy = w.government.policy
+        intervention_goods = set(policy.intervention_floor_price) | set(policy.intervention_ceiling_price)
         for region in w.regions:
-            for good in goods:
+            for good in intervention_goods:
                 last_price = w.last_price(region.id, good)
                 last_volume = w.last_volume(region.id, good)
                 buy_request = w.government.intervention_buy_request(
@@ -177,19 +219,28 @@ class SimulationEngine:
         return offers, requests
 
     # ------------------------------------------------------------------ phase 6 + 7
-    def _settle(self, trades: list[ExecutedTrade], requests: list[DemandRequest]) -> dict[str, dict[str, float]]:
+    def _settle(self, trades: list[ExecutedTrade], requests: list[DemandRequest],
+                offers: list[SupplyOffer]) -> dict[str, dict[str, float]]:
         """Apply every executed trade to both sides' cash/storage, bucket
         trades by (region, crop) and record one volume-weighted clearing
         price per bucket.
 
         Clearing price recorded = farm-gate unit price (what the seller
-        receives) *plus* a demand-pressure uplift: when total buyer demand
-        exceeds the volume actually traded (fill_rate < 1), the observed
-        price is scaled up by up to `world.demand_price_premium`. This gives
-        farmers the missing upward signal — without it the Nerlove scheme
-        has a fixed point at the current ask and prices never rise. The
-        premium is bounded and cannot cause a spiral (unlike the old
-        delivered-price approach where transport cost compounded each period).
+        receives) scaled by a **two-sided supply/demand-pressure** factor. The
+        national imbalance for the crop, `(demand − supply) / max(demand, supply)
+        ∈ [−1, 1]`, is compared to its own smoothed baseline (EMA, see
+        `world._imbalance_ema`): the price is scaled by `demand_price_premium ×
+        (imbalance − baseline)`. Working off the *deviation* is essential — the
+        raw imbalance is structurally biased positive (farmers withhold stock, so
+        requested demand persistently exceeds the tonnage offered even with grain
+        in storage) and seasonally lumpy; the baseline absorbs both, leaving only
+        transient tightness/glut to move the price. A positive deviation (demand
+        spikes / supply dries up beyond normal) lifts the price; a negative one
+        (glut) pushes it down. This is the channel through which *quantity* moves
+        price, so endogenous demand (buyers' price-elastic throughput and
+        exporters' margin-flexed volume) feeds back into the clearing price and
+        damps spikes. `supply` is the tonnage offered this month, `demand` the
+        tonnage requested — both national, per crop.
 
         The region a bucket is attributed to is the *seller's* home region
         when it has one (almost always — farmers and the government's
@@ -217,44 +268,63 @@ class SimulationEngine:
             crop_summary["volume"] += trade.quantity
             crop_summary["value"] += trade.delivered_price * trade.quantity
 
-        # Total demand submitted per crop this month (across all buyers/exporters).
-        # Used to compute the fill rate: how much of buyer demand was actually met.
+        # National supply/demand totals per crop this month: tonnage requested
+        # (across all buyers/exporters) vs. tonnage offered (across all sellers).
+        # Their imbalance is the two-sided price-pressure signal applied below.
         total_demand_per_crop: dict[str, float] = {}
         for req in requests:
             total_demand_per_crop[req.crop_id] = total_demand_per_crop.get(req.crop_id, 0.0) + req.quantity
+        total_supply_per_crop: dict[str, float] = {}
+        for off in offers:
+            total_supply_per_crop[off.crop_id] = total_supply_per_crop.get(off.crop_id, 0.0) + off.quantity
+
+        # Pressure factor per crop: premium × (current imbalance − smoothed
+        # baseline), clamped, computed once per crop and reused for every region
+        # the crop cleared in. The baseline EMA is updated here (once per crop).
+        pressure: dict[str, float] = {}
+        alpha = w.demand_pressure_smoothing
+        for crop_id in {cid for _, cid in buckets}:
+            demand = total_demand_per_crop.get(crop_id, 0.0)
+            supply = total_supply_per_crop.get(crop_id, 0.0)
+            denom = max(demand, supply)
+            if denom <= 1e-6:
+                pressure[crop_id] = 0.0
+                continue
+            imbalance = (demand - supply) / denom   # ∈ [−1, 1]
+            # Seed the baseline at the first observation so there is no cold-start
+            # shock (deviation 0 on month one), then track it with the EMA.
+            baseline = w._imbalance_ema.get(crop_id, imbalance)
+            deviation = max(-1.0, min(1.0, imbalance - baseline))
+            w._imbalance_ema[crop_id] = baseline + alpha * (imbalance - baseline)
+            pressure[crop_id] = w.demand_price_premium * deviation
 
         for (region_id, crop_id), bucket in buckets.items():
             if bucket["volume"] <= 0:
                 continue
             avg_unit_price = bucket["value"] / bucket["volume"]
-
-            # Demand-pressure signal: if buyers couldn't fill all their orders
-            # (fill_rate < 1), the clearing price is nudged above the average ask.
-            # This is the upward counterpart to the downward storage-discount
-            # pressure and is what allows cobweb oscillation to emerge.
-            total_demand = total_demand_per_crop.get(crop_id, 0.0)
-            if total_demand > 1e-6:
-                fill_rate = min(1.0, bucket["volume"] / total_demand)
-                demand_signal = avg_unit_price * (1.0 + w.demand_price_premium * (1.0 - fill_rate))
-            else:
-                demand_signal = avg_unit_price
-
+            demand_signal = avg_unit_price * (1.0 + pressure.get(crop_id, 0.0))
             w.record_clearing(region_id, crop_id, demand_signal, bucket["volume"])
 
         return summary
 
-    def _return_unsold_offers(self, offers: list[SupplyOffer], trades: list[ExecutedTrade]) -> None:
+    def _return_unsold_offers(self, offers: list[SupplyOffer], trades: list[ExecutedTrade]) -> float:
         """Grain a farmer withdrew from storage to offer for sale (see
         `Farmer.decide_sales`, which deducts the offered quantity from
         `storage` up front) but that found no buyer this month must go back
         into storage — otherwise it silently disappears from the model
-        (produced and withdrawn, yet neither sold nor consumed nor stored)."""
+        (produced and withdrawn, yet neither sold nor consumed nor stored).
+
+        Returns the tonnage that could *not* be returned because the farm's
+        storage was already full (forced-overflow grain a farm had to dump and
+        cannot reabsorb): this is grain that genuinely leaves the economy, so it
+        is reported as `dumped_tons` for the monthly mass balance."""
         w = self.world
         sold_by_seller_crop: dict[tuple[str, str], float] = {}
         for trade in trades:
             key = (trade.seller_id, trade.crop_id)
             sold_by_seller_crop[key] = sold_by_seller_crop.get(key, 0.0) + trade.quantity
 
+        dumped = 0.0
         for offer in offers:
             seller = w.find_agent(offer.seller_id)
             if not isinstance(seller, Farmer):
@@ -262,7 +332,9 @@ class SimulationEngine:
             key = (offer.seller_id, offer.crop_id)
             unsold = offer.quantity - sold_by_seller_crop.get(key, 0.0)
             if unsold > 1e-6:
-                seller.return_unsold(offer.crop_id, unsold)
+                stored = seller.return_unsold(offer.crop_id, unsold)
+                dumped += unsold - stored
+        return dumped
 
     def _apply_trade(self, trade: ExecutedTrade) -> None:
         w = self.world
@@ -296,15 +368,22 @@ class SimulationEngine:
             buyer.pay(cost)
 
     # ------------------------------------------------------------------ phase 8
-    def _consumption_and_exports(self, month: int) -> None:
+    def _consumption_and_exports(self, month: int) -> tuple[float, float]:
+        """Buyers process their monthly throughput; exporters ship abroad.
+        Returns (tonnage consumed by buyers, tonnage exported) — both are grain
+        leaving the modelled domestic economy, for the monthly mass balance."""
         w = self.world
+        before_buyers = self._sum_storage(w.buyers)
         for buyer in w.buyers:
             buyer.consume(w.build_snapshot(buyer.region_id))
+        consumed = before_buyers - self._sum_storage(w.buyers)
 
+        exported = 0.0
         month_idx = w.month_index
         for exporter in w.exporters:
             shipped = exporter.ship_out()
             for crop_id, qty in shipped.items():
+                exported += qty
                 world_price = w.world_price_for(crop_id, month_idx) or 0.0
                 duty_rate = w.government.export_duty_rate(crop_id)
                 gross = world_price * qty
@@ -318,19 +397,19 @@ class SimulationEngine:
                     revenue_rub=gross - duty_amount - fee_amount, duty_rub=duty_amount,
                     fee_rub=fee_amount,
                 ))
+        return consumed, exported
 
-    # ------------------------------------------------------------------ phase 8 (demand contraction)
-    def _demand_contraction_phase(self) -> None:
-        """After prices are finalized, check if buyers should reduce consumption.
-
-        Buyers that have paid consistently above their target price reduce their
-        monthly consumption by a fixed fraction. This creates endogenous demand
-        saturation: oversupply keeps prices high → demand shrinks → market clears.
-        """
+    # ------------------------------------------------------------------ phase 8 (price-elastic demand)
+    def _demand_update_phase(self) -> None:
+        """After prices are finalized, rescale each buyer's processing throughput
+        by its constant-elasticity response to the price it paid this month
+        (see Buyer.update_demand). Sustained overpayment shrinks demand, cheap
+        input expands it (within capacity) — continuous, two-sided endogenous
+        demand that lets the market clear without ratchets or counters."""
         w = self.world
         for buyer in w.buyers:
             snapshot = w.build_snapshot(buyer.region_id)
-            buyer.check_demand_contraction(snapshot)
+            buyer.update_demand(snapshot)
 
     # ------------------------------------------------------------------ phase 9 (lifecycle)
     def _lifecycle_phase(self, year: int, month: int) -> dict[str, list[str]]:
@@ -410,9 +489,15 @@ class SimulationEngine:
     # ------------------------------------------------------------------ phase 10
     def _log_step(self, year: int, month: int, trade_summary: dict[str, dict[str, float]],
                   national_prices: dict[str, float],
-                  lifecycle: dict[str, list[str]] | None = None) -> dict:
+                  lifecycle: dict[str, list[str]] | None = None,
+                  flows: dict[str, float] | None = None) -> dict:
         w = self.world
         lifecycle = lifecycle or {}
+        flows = flows or {}
+        total_farmer_storage = self._sum_storage(w.farmers)
+        total_buyer_storage = self._sum_storage(w.buyers)
+        total_exporter_storage = self._sum_storage(w.exporters)
+        total_reserves = sum(w.government.reserves.values())
         return {
             "year": year,
             "month": month,
@@ -433,7 +518,22 @@ class SimulationEngine:
             "buyers_spawned": len(lifecycle.get("buyers_spawned", [])),
             "fx_rate": w.fx_rate,
             "world_price_shock": w.world_price_shock,
-            "total_farmer_storage": sum(sum(f.storage.values()) for f in w.farmers),
-            "total_buyer_storage": sum(sum(b.storage.values()) for b in w.buyers),
-            "total_exporter_storage": sum(sum(e.storage.values()) for e in w.exporters),
+            "total_farmer_storage": total_farmer_storage,
+            "total_buyer_storage": total_buyer_storage,
+            "total_exporter_storage": total_exporter_storage,
+            "total_government_reserves": total_reserves,
+            # Total grain held anywhere in the modelled economy at month end —
+            # the stock the monthly flows (below) reconcile against.
+            "total_grain_in_system": (
+                total_farmer_storage + total_buyer_storage
+                + total_exporter_storage + total_reserves
+            ),
+            # Per-month grain flows: the only inflow is the harvest; grain leaves
+            # the economy through consumption, spoilage, export and forced dumping.
+            # ΔTotal grain == harvested − consumed − spoiled − exported − dumped.
+            "harvested_tons": flows.get("harvested_tons", 0.0),
+            "consumed_tons": flows.get("consumed_tons", 0.0),
+            "spoiled_tons": flows.get("spoiled_tons", 0.0),
+            "exported_tons": flows.get("exported_tons", 0.0),
+            "dumped_tons": flows.get("dumped_tons", 0.0),
         }

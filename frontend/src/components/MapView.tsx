@@ -68,12 +68,22 @@ function formatNumber(n: number): string {
   return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(n);
 }
 
-function formatPriceMap(prices: Record<string, number>): React.ReactNode {
+const sumValues = (rec: Record<string, number>) => Object.values(rec).reduce((a, b) => a + b, 0);
+
+/** A coloured "response vs baseline" badge: e.g. demand or export volume now
+ *  relative to its baseline/contract (>100% green, <100% amber). */
+function ResponseBadge({ pct }: { pct: number }) {
+  if (!Number.isFinite(pct)) return null;
+  const color = pct > 102 ? "#2c6e49" : pct < 98 ? "#c0392b" : "#6b7280";
+  return <strong style={{ color }}>{formatNumber(pct)}%</strong>;
+}
+
+function formatPriceMap(label: string, prices: Record<string, number>): React.ReactNode {
   const entries = Object.entries(prices);
   if (entries.length === 0) return null;
   return (
     <div>
-      Ценовые ожидания:{" "}
+      {label}:{" "}
       {entries.map(([cropId, price], idx) => (
         <span key={cropId}>
           {idx > 0 && ", "}
@@ -86,43 +96,69 @@ function formatPriceMap(prices: Record<string, number>): React.ReactNode {
 
 function describe(agent: Agent): React.ReactNode {
   switch (agent.type) {
-    case "farmer":
+    case "farmer": {
+      const fill = agent.storage_capacity_tons > 0 ? (agent.storage_tons / agent.storage_capacity_tons) * 100 : 0;
       return (
         <>
-          <div>Площадь: {formatNumber(agent.total_area_ha)} га</div>
+          <div>Площадь: {formatNumber(agent.total_area_ha)} га · зона {agent.climate_zone}</div>
           <div>
-            Хранилище: {formatNumber(agent.storage_tons)} / {formatNumber(agent.storage_capacity_tons)} т
+            Склад: {formatNumber(agent.storage_tons)} / {formatNumber(agent.storage_capacity_tons)} т ({formatNumber(fill)}%)
           </div>
           <div>Культуры: {agent.allowed_crop_ids.join(", ")}</div>
-          {formatPriceMap(agent.expected_price)}
+          {formatPriceMap("Ценовые ожидания", agent.expected_price)}
           <div>Баланс: {formatNumber(agent.cash)} ₽</div>
+          {agent.cash_ema != null && <div>Прибыльность (EMA): {formatNumber(agent.cash_ema)} ₽/мес.</div>}
+          {agent.insolvent_months > 0 && (
+            <div style={{ color: "#c0392b" }}>Неплатёжеспособен: {agent.insolvent_months} мес.</div>
+          )}
         </>
       );
-    case "buyer":
+    }
+    case "buyer": {
+      const current = sumValues(agent.monthly_consumption);
+      const baseline = sumValues(agent.monthly_consumption_baseline);
+      const responsePct = baseline > 0 ? (current / baseline) * 100 : NaN;
+      const fill = agent.storage_capacity_tons > 0 ? (agent.storage_tons / agent.storage_capacity_tons) * 100 : 0;
       return (
         <>
           <div>Тип: {agent.buyer_type}</div>
+          <div>Склад: {formatNumber(agent.storage_tons)} / {formatNumber(agent.storage_capacity_tons)} т ({formatNumber(fill)}%)</div>
           <div>
-            Хранилище: {formatNumber(agent.storage_tons)} / {formatNumber(agent.storage_capacity_tons)} т
+            Спрос: {formatNumber(current)} т/мес. (база {formatNumber(baseline)}) ·{" "}
+            <ResponseBadge pct={responsePct} />
           </div>
-          <div>Месячная потребность: {formatNumber(Object.values(agent.monthly_consumption).reduce((a, b) => a + b, 0))} т</div>
-          <div>Гибкость спроса (φ): {formatNumber(agent.flexibility)}</div>
+          <div>Эластичность спроса (ε): {formatNumber(agent.demand_elasticity)}</div>
+          <div>Гибкость (φ): {formatNumber(agent.flexibility)} · запас {formatNumber(agent.target_inventory_months)} мес.</div>
+          {formatPriceMap("Ценовой якорь", agent.expected_price)}
           <div>Баланс: {formatNumber(agent.cash)} ₽</div>
           {agent.insolvent_months > 0 && (
             <div style={{ color: "#c0392b" }}>Неплатёжеспособен: {agent.insolvent_months} мес.</div>
           )}
         </>
       );
-    case "exporter":
+    }
+    case "exporter": {
+      const contract = sumValues(agent.monthly_capacity_tons);
+      const target = sumValues(agent.ship_target);
+      const responsePct = contract > 0 && target > 0 ? (target / contract) * 100 : NaN;
       return (
         <>
           <div>Направление: {agent.destination_country}</div>
           <div>Культуры: {agent.handled_crop_ids.join(", ")}</div>
-          <div>Хранилище: {formatNumber(agent.storage_tons)} т</div>
-          <div>Гибкость спроса (φ): {formatNumber(agent.flexibility)}</div>
+          <div>Контракт: {formatNumber(contract)} т/мес.</div>
+          {target > 0 && (
+            <div>
+              План вывоза: {formatNumber(target)} т ({" "}
+              <ResponseBadge pct={responsePct} /> к контракту)
+            </div>
+          )}
+          <div>Эластичность вывоза: {formatNumber(agent.volume_elasticity)}</div>
+          <div>Отгружено всего: {formatNumber(sumValues(agent.shipped_total))} т</div>
+          <div>Гибкость (φ): {formatNumber(agent.flexibility)}</div>
           <div>Баланс: {formatNumber(agent.cash)} ₽</div>
         </>
       );
+    }
   }
 }
 

@@ -8,7 +8,7 @@ from app.core.session import SimulationNotStarted, session
 from app.simulation.agents.government import GovernmentPolicy
 from app.simulation.logistics import LogisticsConfig
 from app.simulation.scenario import ScenarioConfig
-from app.schemas.simulation import InterveneRequest, ScenarioConfigIn, StepRequest
+from app.schemas.simulation import AddAgentRequest, InterveneRequest, ScenarioConfigIn, StepRequest
 
 router = APIRouter(prefix="/api/simulation", tags=["simulation"])
 
@@ -96,6 +96,17 @@ def get_agents():
     return _guarded(session.agents)
 
 
+@router.post("/agents")
+def add_agent(payload: AddAgentRequest):
+    """Add a farmer/buyer/exporter to the running world; returns the new agent."""
+    try:
+        return session.add_agent(payload)
+    except SimulationNotStarted as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/history")
 def get_history():
     return _guarded(session.history)
@@ -109,3 +120,31 @@ def get_market_history():
 @router.get("/exports")
 def get_exports():
     return _guarded(session.exports)
+
+
+# ------------------------------------------------------------------ stored-run browsing
+@router.get("/runs")
+def list_runs():
+    """Catalogue of every persisted run (newest first) — id, config, step count,
+    where it stands. Does not require an active simulation."""
+    return session.list_runs()
+
+
+@router.get("/runs/{run_id}")
+def get_run(run_id: int):
+    """Full reload of a stored run: config + monthly history + the latest
+    cumulative state/agents/exports/market (the same shapes the live endpoints
+    return, so the UI can render a past run read-only)."""
+    try:
+        return session.load_run(run_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/runs/{run_id}")
+def delete_run(run_id: int):
+    try:
+        session.delete_run(run_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"deleted": run_id}

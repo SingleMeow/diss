@@ -29,7 +29,18 @@
       "Bash(iconv -f utf-8 -t utf-8 /tmp/region_names.txt)",
       "Bash(python generate_regions.py)",
       "Bash(./.venv/Scripts/python.exe -c ' *)",
-      "Bash(./.venv/Scripts/python.exe -m pytest -q)"
+      "Bash(./.venv/Scripts/python.exe -m pytest -q)",
+      "PowerShell(& 'C:\\\\Users\\\\��������\\\\Desktop\\\\diss\\\\backend\\\\.venv\\\\Scripts\\\\python.exe' -m pip freeze)",
+      "PowerShell(& 'C:\\\\Users\\\\��������\\\\Desktop\\\\diss\\\\backend\\\\.venv\\\\Scripts\\\\python.exe' --version)",
+      "PowerShell(& 'C:\\\\Users\\\\��������\\\\Desktop\\\\diss\\\\backend\\\\.venv\\\\Scripts\\\\python.exe' -m pip install --dry-run -r 'C:\\\\Users\\\\��������\\\\Desktop\\\\diss\\\\backend\\\\requirements.txt' 2>&1)",
+      "Bash(.venv/Scripts/python.exe _isolate.py)",
+      "Bash(.venv/Scripts/python.exe _sbp.py)",
+      "Bash(.venv/Scripts/python.exe _exo.py)",
+      "Bash(grep -v -E '\\\\.\\(pyc|db\\)$')",
+      "Bash(echo \"=== tsc exit: $? ===\")",
+      "Bash(git rm *)",
+      "Bash(grep -E '\\\\.\\(py|tsx|ts\\)$')",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_engine.py -q)"
     ]
   }
 }

@@ -605,6 +605,32 @@ tbody tr:hover {
   margin: 8px 0;
 }
 
+/* ------------------------------------------------------------- agents tab */
+.agents-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.agents-type-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.param-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.param-table th.sortable:hover {
+  color: var(--accent-dark);
+}
+.param-table th.num,
+.param-table td.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
 /* -------------------------------------------------- regional price spread */
 .region-picker {
   display: flex;

@@ -26,9 +26,10 @@ class ClimateZone(str, Enum):
 class Region:
     """A federal subject (or aggregated cluster) used as a node on the map.
 
-    Regions act both as the geographic home of agents and as the location of
-    the regional commodity exchange (double-auction hub) where local supply
-    and demand are matched.
+    Regions are the geographic home of agents and the unit prices/volumes are
+    aggregated by. There is no regional exchange: trading is decentralised
+    search-and-match (see `market/search_market.py`), so a region is a location
+    and a reporting bucket, not a clearing venue.
     """
 
     id: str

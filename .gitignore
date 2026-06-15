@@ -11,6 +11,11 @@ build/
 dist/
 *.log
 
+# Generated artifacts (regenerated on demand; not source)
+backend/simulation.db
+.pytest_cache/
+*.tsbuildinfo
+
 # OS/editor files
 .DS_Store
 Thumbs.db

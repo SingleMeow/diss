@@ -50,6 +50,12 @@ export default function ParametersPanel({ config, crops }: Props) {
   const cropIds = Object.keys(config.world_prices ?? {});
   const worldPrices = config.world_prices ?? null;
 
+  // World prices are keyed by MARKET GOOD ("wheat"), not agronomic variety
+  // ("winter_wheat"), so resolve labels via market_good — not crops.find(c.id),
+  // which would never match a good key and fall back to the raw id.
+  const goodName = (id: string) =>
+    crops.find((c) => c.market_good === id)?.market_good_name ?? id;
+
   return (
     <div className="panel">
       <h2>Параметры модели</h2>
@@ -162,7 +168,7 @@ export default function ParametersPanel({ config, crops }: Props) {
               <tbody>
                 {cropIds.map(cid => (
                   <tr key={cid}>
-                    <td className="param-label">{crops.find(c => c.id === cid)?.name ?? cid}</td>
+                    <td className="param-label">{goodName(cid)}</td>
                     {(worldPrices[cid] ?? []).map((p, i) => (
                       <td key={i} style={{ textAlign: "right", fontSize: 11 }}>{fmt(p)}</td>
                     ))}

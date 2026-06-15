@@ -108,8 +108,15 @@ class World:
     weather_regional_weight: float = 0.35
     weather_idiosyncratic_weight: float = 0.25
 
-    # Demand-signal parameter — sourced from agent_parameters.json:farmer_behavior
+    # Demand-signal parameters — sourced from agent_parameters.json:farmer_behavior.
+    # The clearing price is scaled by demand_price_premium times the *deviation* of
+    # the current national supply/demand imbalance from its smoothed baseline (see
+    # engine._settle): the structural bias (farmers withhold stock, so requested
+    # demand persistently exceeds offered supply) is absorbed into the baseline, so
+    # only transient tightness/glut — the spikes we damp, and the swings endogenous
+    # demand produces — actually move the price.
     demand_price_premium: float = 0.03
+    demand_pressure_smoothing: float = 0.1   # EMA α for the per-crop imbalance baseline
     # Seller's share of the buyer-surplus in the search market's surplus-split
     # pricing — how strongly the demand side lifts the executed price above the
     # seller's ask toward the buyer's valuation. 0 = old "pay the ask" behaviour.
@@ -123,12 +130,28 @@ class World:
     # (region_id, crop_id) -> {"months": [month_index...], "prices": [...]}
     _market_archive: dict[tuple[str, str], dict[str, list[float]]] = field(default_factory=dict, init=False)
     _national_price_history: dict[str, list[float]] = field(default_factory=dict, init=False)
+    # Smoothed per-crop supply/demand imbalance baseline (EMA), so the price
+    # premium reacts to deviations from "normal" tightness, not the structural
+    # bias. crop_id -> EMA of (demand - supply)/max(demand, supply).
+    _imbalance_ema: dict[str, float] = field(default_factory=dict, init=False)
     export_history: list[MonthlyExportRecord] = field(default_factory=list, init=False)
     step_log: list[dict] = field(default_factory=list, init=False)
     _farm_counter: int = field(default=0, init=False, repr=False)
     _buyer_counter: int = field(default=0, init=False, repr=False)
     weather: WeatherModel = field(init=False, repr=False, compare=False)
     _market_rng: random.Random = field(init=False, repr=False, compare=False)
+
+    # Per-step memoised market snapshots. `build_snapshot` is a pure function of
+    # the current market state, but the engine calls it once per agent and many
+    # agents share a region — without caching the *identical* snapshot is rebuilt
+    # thousands of times a step (a haversine + a loop over every market good
+    # each time). A generation counter, bumped whenever the underlying price
+    # state changes (a new month, a recorded clearing, a national-price
+    # finalisation), invalidates the cache, so phases that run *after* settlement
+    # (consumption, demand contraction) still observe fresh post-clearing data.
+    _market_gen: int = field(default=0, init=False, repr=False, compare=False)
+    _snapshot_cache: dict[str, MarketSnapshot] = field(default_factory=dict, init=False, repr=False, compare=False)
+    _snapshot_cache_gen: int = field(default=-1, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         self.rng = random.Random(self.seed)
@@ -236,6 +259,7 @@ class World:
             self.year += 1
         else:
             self.month += 1
+        self._market_gen += 1   # new month → snapshots (month_index, prices) are stale
 
     @property
     def month_index(self) -> int:
@@ -250,6 +274,7 @@ class World:
         return self._stats[key]
 
     def record_clearing(self, region_id: str, crop_id: str, price: float | None, volume: float) -> None:
+        self._market_gen += 1   # observed prices changed → invalidate cached snapshots
         stats = self._stats_for(region_id, crop_id)
         if price is not None:
             stats.prices.append(price)
@@ -270,6 +295,7 @@ class World:
     def finalize_national_prices(self) -> dict[str, float]:
         """Volume-weighted national average price per market good for the month
         just cleared (one price per traded commodity, e.g. one "wheat" price)."""
+        self._market_gen += 1   # national averages changed → invalidate cached snapshots
         national: dict[str, float] = {}
         for good in self.crops.market_goods():
             total_value, total_volume = 0.0, 0.0
@@ -290,6 +316,25 @@ class World:
         return national
 
     def build_snapshot(self, region_id: str) -> MarketSnapshot:
+        """Return a (memoised) market snapshot for a region.
+
+        The snapshot is a pure function of the current market state, so within a
+        single generation (no new month / clearing / national-price update) all
+        agents in the same region get the *same* cached instance instead of
+        rebuilding it. `MarketSnapshot` is read-only by contract, so sharing one
+        instance between agents is safe. See `_market_gen`.
+        """
+        if self._snapshot_cache_gen != self._market_gen:
+            self._snapshot_cache.clear()
+            self._snapshot_cache_gen = self._market_gen
+        cached = self._snapshot_cache.get(region_id)
+        if cached is not None:
+            return cached
+        snapshot = self._compute_snapshot(region_id)
+        self._snapshot_cache[region_id] = snapshot
+        return snapshot
+
+    def _compute_snapshot(self, region_id: str) -> MarketSnapshot:
         """Build the market snapshot for a region.
 
         When a region has no local trading history, agents fall back to the
@@ -326,6 +371,13 @@ class World:
             )
         return MarketSnapshot(year=self.year, month=self.month,
                               month_index=self.month_index, crops=crops_info)
+
+    def last_national_price(self, good: str) -> float | None:
+        """Most recent volume-weighted national average price for a market good
+        (the domestic sourcing-cost reference exporters flex their volume on).
+        None until the good has cleared at least once."""
+        hist = self._national_price_history.get(good)
+        return hist[-1] if hist else None
 
     def last_price(self, region_id: str, crop_id: str) -> float | None:
         stats = self._stats.get((region_id, crop_id))

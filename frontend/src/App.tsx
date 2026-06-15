@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { referenceApi, simulationApi } from "./api/client";
 import type {
+  AddAgentRequest,
   Agent,
   Crop,
   ExportRecord,
@@ -10,6 +11,7 @@ import type {
   SimulationState,
   StepRecord,
 } from "./api/types";
+import AgentsPanel from "./components/AgentsPanel";
 import ControlPanel from "./components/ControlPanel";
 import ExportsPanel from "./components/ExportsPanel";
 import MapView from "./components/MapView";
@@ -18,11 +20,12 @@ import PriceCharts from "./components/PriceCharts";
 import ScenarioManipulationPanel from "./components/ScenarioManipulationPanel";
 import StatsPanel from "./components/StatsPanel";
 
-type TabId = "overview" | "map" | "prices" | "exports" | "params" | "manipulate";
+type TabId = "overview" | "map" | "agents" | "prices" | "exports" | "params" | "manipulate";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "overview",   label: "Обзор",      icon: "📊" },
   { id: "map",        label: "Карта",      icon: "🗺️" },
+  { id: "agents",     label: "Агенты",     icon: "👥" },
   { id: "prices",     label: "Цены",       icon: "📈" },
   { id: "exports",    label: "Экспорт",    icon: "🚢" },
   { id: "manipulate", label: "Сценарий",   icon: "🎛️" },
@@ -107,6 +110,16 @@ export default function App() {
     [refreshDerivedData],
   );
 
+  const handleAddAgent = useCallback(
+    async (req: AddAgentRequest) => {
+      setError(null);
+      await simulationApi.addAgent(req);          // throws on 400 → surfaced by caller's catch
+      const [newState] = await Promise.all([simulationApi.state(), refreshDerivedData()]);
+      setState(newState);
+    },
+    [refreshDerivedData],
+  );
+
   // Autorun: schedule the next step via setTimeout so we always wait for the
   // current response before firing again (adapts naturally to backend latency).
   useEffect(() => {
@@ -177,11 +190,21 @@ export default function App() {
           {activeTab === "map" && (
             <MapView agents={agents} regions={regions} tall />
           )}
+          {activeTab === "agents" && (
+            <AgentsPanel
+              agents={agents}
+              regions={regions}
+              crops={crops}
+              running={running}
+              busy={busy}
+              onAdd={handleAddAgent}
+            />
+          )}
           {activeTab === "prices" && (
             <PriceCharts crops={crops} regions={regions} history={history} marketHistory={marketHistory} />
           )}
           {activeTab === "exports" && (
-            <ExportsPanel exports={exportRecords} />
+            <ExportsPanel exports={exportRecords} agents={agents} />
           )}
           {activeTab === "manipulate" && (
             <ScenarioManipulationPanel running={running} regions={regions} onApplied={refreshDerivedData} />
